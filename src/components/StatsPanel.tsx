@@ -15,8 +15,30 @@ function StatBar({ label, value, max = 99, color = 'primary' }: { label: string;
       <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${
-            color === 'primary' ? 'bg-primary' : color === 'green' ? 'bg-cs2-green' : color === 'orange' ? 'bg-cs2-orange' : color === 'red' ? 'bg-destructive' : 'bg-cs2-blue'
+            color === 'primary' ? 'bg-primary' : color === 'green' ? 'bg-cs2-green' : color === 'orange' ? 'bg-cs2-orange' : color === 'red' ? 'bg-destructive' : color === 'yellow' ? 'bg-yellow-400' : 'bg-cs2-blue'
           }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EnergyBar({ energy }: { energy: number }) {
+  const pct = Math.min(100, energy);
+  const color = energy >= 50 ? 'bg-cs2-green' : energy >= 20 ? 'bg-yellow-400' : 'bg-destructive';
+  const label = energy >= 50 ? 'Fresh' : energy >= 20 ? 'Tired' : 'Exhausted';
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs font-mono">
+        <span className="text-muted-foreground">Energy</span>
+        <span className={energy >= 50 ? 'text-cs2-green' : energy >= 20 ? 'text-yellow-400' : 'text-destructive'}>
+          {Math.round(energy)}/100 · {label}
+        </span>
+      </div>
+      <div className="h-2 bg-secondary rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${color}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -34,17 +56,26 @@ export default function StatsPanel({ state }: Props) {
         <div className="flex justify-between items-start">
           <div>
             <h2 className="text-lg font-display font-bold text-foreground">{state.playerName}</h2>
-            <p className="text-xs font-mono text-primary">{state.role} • {state.region}</p>
+            <p className="text-xs font-mono text-primary">{state.role} · {state.region}</p>
           </div>
           <div className="text-right">
             <div className="text-xs font-mono text-muted-foreground">Age {state.age}</div>
             <div className="text-xs font-mono text-muted-foreground">Week {state.weeks}</div>
           </div>
         </div>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
           <span className="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-primary/20 text-primary">{state.stage}</span>
           {state.team && <span className="px-2 py-0.5 rounded text-xs font-mono bg-secondary text-secondary-foreground">{state.team.name}</span>}
         </div>
+      </div>
+
+      {/* Energy */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Energy</h3>
+        <EnergyBar energy={state.energy} />
+        <p className="text-xs text-muted-foreground font-mono mt-2">
+          Training: -30 · Match: -15 · Stream: -10 · Rest: +50 · Weekly: +10
+        </p>
       </div>
 
       {/* HLTV Stats */}
@@ -92,6 +123,52 @@ export default function StatsPanel({ state }: Props) {
         <StatBar label="Sleep Quality" value={state.lifestyle.sleepQuality} max={100} color="blue" />
         <StatBar label="Tilt Level" value={state.lifestyle.tiltLevel} max={100} color="red" />
       </div>
+
+      {/* Team */}
+      {state.team && (
+        <div className="bg-card border border-border rounded-lg p-4">
+          <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Team</h3>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-display font-semibold text-foreground">{state.team.name}</span>
+            <span className="text-xs font-mono text-cs2-gold">${(state.team.salary / 4).toLocaleString()}/wk</span>
+          </div>
+          <StatBar label="Team Chemistry" value={state.team.chemistry} max={100} color="green" />
+          {state.team.teammates.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Teammates</div>
+              {state.team.teammates.map((t, i) => (
+                <div key={i} className="flex justify-between items-center text-xs font-mono">
+                  <span className="text-foreground">{t.name}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span>{t.role}</span>
+                    <span className={t.chemistry >= 70 ? 'text-cs2-green' : t.chemistry >= 40 ? 'text-yellow-400' : 'text-destructive'}>
+                      ♥ {Math.round(t.chemistry)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tournament History */}
+      {state.tournamentHistory.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-4">
+          <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Tournament History</h3>
+          <div className="space-y-2">
+            {state.tournamentHistory.slice(-5).reverse().map((t, i) => (
+              <div key={i} className="flex justify-between items-center text-xs font-mono">
+                <div>
+                  <span className="text-foreground">{t.name}</span>
+                  <span className="text-muted-foreground ml-2">{t.placement}</span>
+                </div>
+                <span className="text-cs2-gold">${t.prize.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Money & Equipment */}
       <div className="bg-card border border-border rounded-lg p-4">

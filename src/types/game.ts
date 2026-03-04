@@ -3,7 +3,9 @@ export type Region = 'EU' | 'CIS' | 'NA' | 'SA' | 'Asia';
 export type CareerStage = 'FaceIt Grind' | 'FPL-C' | 'FPL' | 'Academy' | 'Tier 3' | 'Tier 2' | 'Tier 1' | 'Major Contender' | 'Retired';
 
 export type TrainingFocus = 'aim' | 'positioning' | 'nades' | 'gameIQ' | 'communication';
-export type WeekAction = 'train' | 'match' | 'rest' | 'stream' | 'shop';
+export type WeekAction = 'train' | 'match' | 'rest' | 'stream' | 'shop' | 'team_practice' | 'tournament_match';
+
+export type TournamentType = 'Open Qualifier' | 'Regional' | 'Pro League' | 'Major Qualifier' | 'Major';
 
 export interface PlayerStats {
   adr: number;
@@ -44,11 +46,39 @@ export type MouseTier = 'Budget' | 'Mid-Range' | 'Pro';
 export type KeyboardTier = 'Membrane' | 'Mechanical' | 'Custom';
 export type PCTier = 'Potato' | 'Mid' | 'High-End' | 'Beast';
 
+export interface Teammate {
+  name: string;
+  role: Role;
+  skill: number; // 0-99
+  chemistry: number; // 0-100 chemistry with player
+}
+
 export interface Team {
   name: string;
   tier: CareerStage;
-  chemistry: number;
+  chemistry: number; // overall team chemistry
   salary: number;
+  teammates: Teammate[];
+}
+
+export interface Tournament {
+  id: string;
+  name: string;
+  type: TournamentType;
+  prizePool: number;
+  rounds: number; // total rounds needed to win
+  currentRound: number; // 0-indexed
+  wins: number;
+  eliminated: boolean;
+  won: boolean;
+  minStage: CareerStage;
+}
+
+export interface TournamentResult {
+  name: string;
+  type: TournamentType;
+  placement: string;
+  prize: number;
 }
 
 export interface GameEvent {
@@ -76,6 +106,7 @@ export interface EventEffects {
   physicalHealth: number;
   sleepQuality: number;
   teamChemistry: number;
+  energy: number;
 }
 
 export interface MatchResult {
@@ -86,6 +117,7 @@ export interface MatchResult {
   rating: number;
   mvp: boolean;
   type: 'pug' | 'scrim' | 'official' | 'qualifier' | 'major';
+  tournamentRound?: string;
 }
 
 export interface GameState {
@@ -106,6 +138,9 @@ export interface GameState {
   matchesWon: number;
   faceitLevel: number;
   earnings: number;
+  energy: number; // 0-100
+  activeTournament: Tournament | null;
+  tournamentHistory: TournamentResult[];
   currentEvent: GameEvent | null;
   lastMatchResult: MatchResult | null;
   weekLog: string[];
@@ -139,3 +174,56 @@ export const EQUIPMENT_BONUSES: Record<string, Partial<Attributes>> = {
   'High-End': { consistency: 5, aim: 2 },
   'Beast': { consistency: 7, aim: 3 },
 };
+
+// Energy costs per action
+export const ENERGY_COSTS = {
+  train: 30,
+  match: 15,
+  tournament_match: 20,
+  stream: 10,
+  team_practice: 25,
+};
+
+// Available tournaments (template — active ones are cloned onto state)
+export const AVAILABLE_TOURNAMENTS: Omit<Tournament, 'currentRound' | 'wins' | 'eliminated' | 'won'>[] = [
+  {
+    id: 'open_qualifier',
+    name: 'Open Qualifier',
+    type: 'Open Qualifier',
+    prizePool: 1000,
+    rounds: 3,
+    minStage: 'FPL',
+  },
+  {
+    id: 'regional_championship',
+    name: 'Regional Championship',
+    type: 'Regional',
+    prizePool: 5000,
+    rounds: 4,
+    minStage: 'Academy',
+  },
+  {
+    id: 'pro_league',
+    name: 'Pro League',
+    type: 'Pro League',
+    prizePool: 25000,
+    rounds: 5,
+    minStage: 'Tier 3',
+  },
+  {
+    id: 'major_qualifier',
+    name: 'Major Qualifier',
+    type: 'Major Qualifier',
+    prizePool: 50000,
+    rounds: 5,
+    minStage: 'Tier 2',
+  },
+  {
+    id: 'cs2_major',
+    name: 'CS2 Major',
+    type: 'Major',
+    prizePool: 500000,
+    rounds: 6,
+    minStage: 'Tier 1',
+  },
+];
