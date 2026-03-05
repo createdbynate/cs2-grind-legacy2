@@ -131,18 +131,18 @@ export const ENERGY_COSTS: Record<WeekAction, number> = {
   tournament_match: 20,
 };
 
-// ─── FACEIT ELO THRESHOLDS ───
+// ─── FACEIT ELO THRESHOLDS (accurate to real FACEIT CS2 levels) ───
 export const FACEIT_LEVEL_ELO: Record<number, [number, number]> = {
-  1: [0, 500],
-  2: [501, 750],
-  3: [751, 900],
-  4: [901, 1000],
-  5: [1001, 1500],
-  6: [1501, 2000],
-  7: [2001, 2500],
-  8: [2501, 3000],
-  9: [3001, 3500],
-  10: [3501, 9999],
+  1: [100,  500],
+  2: [501,  750],
+  3: [751,  900],
+  4: [901,  1050],
+  5: [1051, 1200],
+  6: [1201, 1450],
+  7: [1451, 1700],
+  8: [1701, 2000],
+  9: [1851, 2100], // overlapping zone — elite territory
+  10: [2001, 9999], // 2001+ = Level 10; FPL candidates
 };
 
 // ─── CONTRACT SYSTEM ───

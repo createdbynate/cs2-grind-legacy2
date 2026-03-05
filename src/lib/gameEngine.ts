@@ -66,7 +66,7 @@ function generateTeammates(region: Region, tier: CareerStage): Teammate[] {
 
 // ─── INITIALIZATION ───
 export function createInitialState(name: string, age: number, role: Role, region: Region): GameState {
-  const startElo = 1050 + Math.floor(Math.random() * 300); // start mid-level 5
+  const startElo = 1051 + Math.floor(Math.random() * 100); // start bottom of level 5 (1051-1150)
   return {
     playerName: name,
     age,
@@ -310,9 +310,10 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
 
   // FACEIT ELO update (during FaceIt Grind)
   if (newState.stage === 'FaceIt Grind') {
+    // Real FACEIT: average ±20-25 ELO per match, K-factor ~50
     const eloChange = won
-      ? Math.floor(20 + Math.random() * 15 + (performance > 0.7 ? 10 : 0))
-      : -Math.floor(15 + Math.random() * 15);
+      ? Math.floor(18 + Math.random() * 10 + (performance > 0.7 ? 5 : 0))
+      : -Math.floor(15 + Math.random() * 12);
     newState.faceitElo = Math.max(0, newState.faceitElo + eloChange);
     // Update faceit level based on ELO
     for (const [lvl, [min, max]] of Object.entries(FACEIT_LEVEL_ELO)) {
@@ -321,7 +322,7 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
         break;
       }
     }
-    if (newState.faceitElo > 3500) newState.faceitLevel = 10;
+    if (newState.faceitElo >= 2001) newState.faceitLevel = 10;
     const eloSign = eloChange >= 0 ? '+' : '';
     newState.weekLog = [...(newState.weekLog ?? []),
       `${won ? '✅' : '❌'} FACEIT ${won ? 'W' : 'L'} — ${kills}/${deaths} | ${rating} Rating | ELO: ${newState.faceitElo} (${eloSign}${eloChange})`];
@@ -555,12 +556,14 @@ export function leaveTeam(state: GameState): GameState {
 
 // ─── CONTRACT OFFER GENERATION ───
 function generateContractOffer(state: GameState, tier: CareerStage): ContractOffer {
+  // Salary ranges based on real CS2 pro scene data (monthly USD)
+  // Academy: ~$1.5-3.5k, Tier 3: ~$2-5k, Tier 2: up to ~$8k, Tier 1: $5k-$80k
   const salaries: Record<string, [number, number]> = {
     'Academy':          [1500,  3500],
-    'Tier 3':           [3000,  7000],
-    'Tier 2':           [7000, 18000],
-    'Tier 1':          [15000, 45000],
-    'Major Contender': [35000, 80000],
+    'Tier 3':           [2000,  5000],
+    'Tier 2':           [4000,  8000],
+    'Tier 1':          [10000, 55000],
+    'Major Contender': [30000, 80000],
   };
   const [minSal, maxSal] = salaries[tier] ?? [1000, 3000];
   const monthlyUSD = Math.floor(minSal + Math.random() * (maxSal - minSal));
@@ -695,13 +698,14 @@ export function declineTournamentInvite(state: GameState, inviteId: string): Gam
 }
 
 // ─── TOURNAMENT INVITE GENERATION ───
+// Tournament templates based on real CS2 circuit (2025 season)
 const TOURNAMENT_TEMPLATES: Record<string, { name: string; type: TournamentType; prizePool: number; rounds: number; prestige: number }[]> = {
   'FaceIt Grind': [
-    { name: 'ESEA Open Division', type: 'ESEA Open', prizePool: 500, rounds: 4, prestige: 1 },
-    { name: 'Community Cup', type: 'ESEA Open', prizePool: 200, rounds: 3, prestige: 1 },
+    { name: 'ESEA Open Division', type: 'ESEA Open', prizePool: 300, rounds: 4, prestige: 1 },
+    { name: 'ESEA Open Intermediate Qualifier', type: 'ESEA Open', prizePool: 500, rounds: 3, prestige: 1 },
   ],
   'FPL-C': [
-    { name: 'ESEA Open Qualifier', type: 'ESEA Open', prizePool: 1000, rounds: 4, prestige: 2 },
+    { name: 'ESEA Intermediate', type: 'ESEA Main', prizePool: 1000, rounds: 4, prestige: 2 },
     { name: 'ESEA Main Qualifier', type: 'ESEA Main', prizePool: 2000, rounds: 4, prestige: 2 },
   ],
   'FPL': [
@@ -710,31 +714,39 @@ const TOURNAMENT_TEMPLATES: Record<string, { name: string; type: TournamentType;
   ],
   'Academy': [
     { name: 'ESEA Advanced', type: 'ESEA Advanced', prizePool: 8000, rounds: 5, prestige: 4 },
-    { name: 'Regional Open Qualifier', type: 'ESEA Advanced', prizePool: 5000, rounds: 4, prestige: 4 },
+    { name: 'ESEA Advanced Open Qualifier', type: 'ESEA Advanced', prizePool: 4000, rounds: 4, prestige: 4 },
   ],
   'Tier 3': [
     { name: 'ESEA Premier', type: 'ESEA Premier', prizePool: 25000, rounds: 5, prestige: 5 },
-    { name: 'ESL Challenger', type: 'ESL Challenger', prizePool: 50000, rounds: 5, prestige: 5 },
-    { name: 'RMR Regional Qualifier', type: 'PGL Major Qualifier', prizePool: 15000, rounds: 4, prestige: 5 },
+    { name: 'ESL Challenger League', type: 'ESL Challenger', prizePool: 50000, rounds: 5, prestige: 5 },
+    { name: 'VRS Regional Qualifier', type: 'PGL Major Qualifier', prizePool: 10000, rounds: 4, prestige: 5 },
   ],
   'Tier 2': [
-    { name: 'ESL Pro League', type: 'ESL Pro League', prizePool: 750000, rounds: 5, prestige: 7 },
-    { name: 'IEM Dallas', type: 'IEM', prizePool: 250000, rounds: 5, prestige: 6 },
-    { name: 'BLAST Premier Qualifier', type: 'BLAST Premier', prizePool: 100000, rounds: 4, prestige: 6 },
-    { name: 'PGL Major Qualifier', type: 'PGL Major Qualifier', prizePool: 100000, rounds: 5, prestige: 7 },
+    { name: 'ESL Pro League Season', type: 'ESL Pro League', prizePool: 400000, rounds: 5, prestige: 7 },
+    { name: 'IEM Dallas', type: 'IEM', prizePool: 300000, rounds: 5, prestige: 6 },
+    { name: 'IEM Melbourne', type: 'IEM', prizePool: 300000, rounds: 5, prestige: 6 },
+    { name: 'BLAST Bounty', type: 'BLAST Premier', prizePool: 500000, rounds: 4, prestige: 6 },
+    { name: 'BLAST.tv Open', type: 'BLAST Premier', prizePool: 400000, rounds: 4, prestige: 6 },
+    { name: 'PGL Astana', type: 'PGL Major Qualifier', prizePool: 625000, rounds: 5, prestige: 7 },
+    { name: 'FISSURE Summer', type: 'PGL Major Qualifier', prizePool: 1000000, rounds: 5, prestige: 7 },
   ],
   'Tier 1': [
-    { name: 'IEM Katowice', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 8 },
-    { name: 'IEM Cologne', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 8 },
-    { name: 'BLAST World Final', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 8 },
-    { name: 'ESL Pro League', type: 'ESL Pro League', prizePool: 750000, rounds: 5, prestige: 7 },
+    { name: 'IEM Katowice', type: 'IEM', prizePool: 1250000, rounds: 5, prestige: 9 },
+    { name: 'IEM Cologne', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 9 },
+    { name: 'BLAST.tv World Final', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 8 },
+    { name: 'ESL Pro League', type: 'ESL Pro League', prizePool: 400000, rounds: 5, prestige: 7 },
+    { name: 'Esports World Cup', type: 'BLAST Premier', prizePool: 1250000, rounds: 5, prestige: 8 },
+    { name: 'StarLadder StarSeries', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 7 },
+    { name: 'BLAST.tv Austin Major', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
+    { name: 'StarLadder Budapest Major', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
     { name: 'PGL Major Copenhagen', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
-    { name: 'PGL Major Austin', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
   ],
   'Major Contender': [
-    { name: 'PGL CS2 Major', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
-    { name: 'BLAST World Final', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 8 },
-    { name: 'IEM Katowice', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 9 },
+    { name: 'BLAST.tv CS2 Major', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
+    { name: 'StarLadder Major', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
+    { name: 'IEM Katowice', type: 'IEM', prizePool: 1250000, rounds: 5, prestige: 9 },
+    { name: 'IEM Cologne', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 9 },
+    { name: 'BLAST.tv World Final', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 8 },
   ],
 };
 
@@ -772,9 +784,9 @@ export function checkProgression(state: GameState): GameState {
 
   // ── FACEIT GRIND → FPL-C ──
   if (s.stage === 'FaceIt Grind') {
-    if (s.faceitLevel >= 10 && s.faceitElo >= 3200 && s.matchesPlayed >= 15) {
+    if (s.faceitLevel >= 10 && s.faceitElo >= 2100 && s.matchesPlayed >= 15) {
       s.stage = 'FPL-C';
-      s.weekLog = [...s.weekLog, `🔥 FPL-C qualified! Your FaceIt performance got you noticed.`];
+      s.weekLog = [...s.weekLog, `🔥 FPL-C invite! Top of Level 10 — the scene noticed you.`];
       s.achievements = [...s.achievements, 'FPL-C Qualified'];
       s = addNarrativeEntry(s, 'FPL-C qualification. The first real step into the scene.', 'milestone');
     } else if (s.faceitLevel === 10 && s.matchesPlayed >= 10) {

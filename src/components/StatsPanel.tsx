@@ -45,7 +45,7 @@ function FaceitEloBar({ elo, level }: { elo: number; level: number }) {
   if (!range) return null;
   const [min, max] = range;
   const pct = Math.min(100, ((elo - min) / (max - min)) * 100);
-  const levelColor = level >= 9 ? 'text-cs2-gold' : level >= 7 ? 'text-cs2-orange' : level >= 5 ? 'text-cs2-green' : 'text-cs2-blue';
+  const levelColor = level === 10 ? 'text-cs2-gold' : level >= 8 ? 'text-cs2-orange' : level >= 6 ? 'text-cs2-green' : 'text-cs2-blue';
   return (
     <div className="space-y-1">
       <div className="flex justify-between items-center text-xs font-mono">
@@ -54,7 +54,7 @@ function FaceitEloBar({ elo, level }: { elo: number; level: number }) {
       </div>
       <div className="h-2 bg-secondary rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${level >= 9 ? 'bg-cs2-gold' : level >= 7 ? 'bg-cs2-orange' : 'bg-cs2-green'}`}
+          className={`h-full rounded-full transition-all duration-500 ${level === 10 ? 'bg-cs2-gold' : level >= 8 ? 'bg-cs2-orange' : 'bg-cs2-green'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -152,7 +152,7 @@ export default function StatsPanel({ state }: Props) {
           <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">FACEIT Progress</h3>
           <FaceitEloBar elo={state.faceitElo} level={state.faceitLevel} />
           <div className="mt-2 text-[10px] font-mono text-muted-foreground">
-            Reach Level 10 + 3200 ELO → FPL-C invitation
+            Reach Level 10 (2001+ ELO) → FPL-C trial invitation
           </div>
         </div>
       )}
