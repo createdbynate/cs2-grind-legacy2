@@ -643,7 +643,7 @@ export function checkProgression(state: GameState): GameState {
 
 // ─── ADVANCE WEEK ───
 export function advanceWeek(state: GameState): GameState {
-  const s = { ...state };
+  let s = { ...state };
   s.weeks++;
   if (s.weeks % 52 === 0) {
     s.age++;
