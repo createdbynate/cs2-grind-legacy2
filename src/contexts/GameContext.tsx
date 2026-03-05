@@ -4,8 +4,11 @@ import {
   createInitialState, applyTraining, simulateMatch, applyRest,
   applyStreaming, checkProgression, advanceWeek, buyEquipment,
   gambleSkins, rollForEvent, applyEventChoice,
-  applyTeamPractice, enterTournament, playTournamentMatch,
+  applyTeamPractice, playTournamentMatch,
   trackEvent, ensureNewStateFields,
+  signContract, rejectOffer,
+  acceptTournamentInvite, declineTournamentInvite,
+  leaveTeam, retirePlayer,
 } from '@/lib/gameEngine';
 import { updateArc } from '@/lib/storyEngine';
 
@@ -16,15 +19,19 @@ type GameAction =
   | { type: 'REST' }
   | { type: 'STREAM' }
   | { type: 'TEAM_PRACTICE' }
-  | { type: 'ENTER_TOURNAMENT'; tournamentId: string }
   | { type: 'PLAY_TOURNAMENT_MATCH' }
+  | { type: 'ACCEPT_TOURNAMENT_INVITE'; inviteId: string }
+  | { type: 'DECLINE_TOURNAMENT_INVITE'; inviteId: string }
   | { type: 'BUY_EQUIPMENT'; item: string; category: 'monitor' | 'mouse' | 'keyboard' | 'pc' }
   | { type: 'GAMBLE'; amount: number }
   | { type: 'RESOLVE_EVENT'; choice: EventChoice; eventId?: string }
   | { type: 'DISMISS_EVENT'; eventId?: string }
+  | { type: 'SIGN_CONTRACT'; offerId: string }
+  | { type: 'REJECT_OFFER'; offerId: string }
+  | { type: 'LEAVE_TEAM' }
+  | { type: 'RETIRE' }
   | { type: 'LOAD_GAME'; state: GameState };
 
-// Actions that consume a week
 const WEEK_ACTIONS = new Set(['TRAIN', 'PLAY_MATCH', 'REST', 'STREAM', 'TEAM_PRACTICE', 'PLAY_TOURNAMENT_MATCH']);
 
 function gameReducer(state: GameState | null, action: GameAction): GameState | null {
@@ -32,7 +39,6 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
     return createInitialState(action.name, action.age, action.role, action.region);
   }
   if (action.type === 'LOAD_GAME') {
-    // Ensure old saves get new fields
     return ensureNewStateFields(action.state);
   }
   if (!state) return null;
@@ -42,88 +48,106 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
   switch (action.type) {
     case 'TRAIN': {
       if (newState.energy < 10) {
-        newState.weekLog = ['⚡ Too exhausted to train! Rest to recover energy.'];
+        newState.weekLog = ['⚡ Too exhausted to train. Rest first.'];
         break;
       }
       newState = applyTraining(newState, action.focus);
       const attrLabel = action.focus === 'nades' ? 'nade usage' : action.focus;
-      newState.weekLog = [
-        ...newState.weekLog,
-        `Trained ${attrLabel} — Energy: ${Math.round(newState.energy)}/100`,
-      ];
+      newState.weekLog = [...newState.weekLog, `Trained ${attrLabel} — Energy: ${Math.round(newState.energy)}/100`];
       break;
     }
+
     case 'PLAY_MATCH': {
       const { state: ms, result } = simulateMatch(newState);
       newState = ms;
-      const clutchNote = result.clutchMoment ? ' ⚡ Clutch moment!' : '';
-      newState.weekLog = [
-        ...newState.weekLog,
-        `${result.won ? '✅ WIN' : '❌ LOSS'} — ${result.kills}/${result.deaths} | ${result.adr} ADR | ${result.rating} Rating${result.mvp ? ' ⭐ MVP' : ''}${clutchNote}`,
-      ];
+      if (newState.stage !== 'FaceIt Grind') {
+        // FACEIT log handled inside simulateMatch; add official match log here
+        const clutchNote = result.clutchMoment ? ' ⚡ Clutch!' : '';
+        newState.weekLog = [
+          ...newState.weekLog,
+          `${result.won ? '✅ WIN' : '❌ LOSS'} — ${result.kills}/${result.deaths} | ${result.adr} ADR | ${result.rating} Rating${result.mvp ? ' ⭐ MVP' : ''}${clutchNote}`,
+        ];
+      }
       break;
     }
+
     case 'REST':
       newState = applyRest(newState);
-      newState.weekLog = [...newState.weekLog, `😴 Rested — Energy restored to ${Math.round(newState.energy)}/100`];
+      newState.weekLog = [...newState.weekLog, `😴 Rested — Energy: ${Math.round(newState.energy)}/100`];
       break;
+
     case 'STREAM':
       newState = applyStreaming(newState);
       break;
+
     case 'TEAM_PRACTICE': {
-      if (!newState.team) {
-        newState.weekLog = ['You need to be on a team first!'];
-        break;
-      }
-      if (newState.energy < 10) {
-        newState.weekLog = ['⚡ Too exhausted for team practice! Rest first.'];
-        break;
-      }
+      if (!newState.team) { newState.weekLog = ['You need a team first!']; break; }
+      if (newState.energy < 10) { newState.weekLog = ['⚡ Too exhausted. Rest first.']; break; }
       newState = applyTeamPractice(newState);
       break;
     }
-    case 'ENTER_TOURNAMENT': {
-      if (newState.activeTournament) {
-        newState.weekLog = ['Already in a tournament!'];
-        break;
-      }
-      newState = enterTournament(newState, action.tournamentId);
-      break;
-    }
+
     case 'PLAY_TOURNAMENT_MATCH': {
-      if (!newState.activeTournament) {
-        newState.weekLog = ['Not currently in a tournament.'];
-        break;
-      }
-      if (newState.energy < 10) {
-        newState.weekLog = ['⚡ Too exhausted for a tournament match! Rest first.'];
-        break;
-      }
+      if (!newState.activeTournament) { newState.weekLog = ['Not in a tournament.']; break; }
+      if (newState.energy < 10) { newState.weekLog = ['⚡ Rest before competing!']; break; }
       const { state: ts } = playTournamentMatch(newState);
       newState = ts;
       break;
     }
+
+    case 'ACCEPT_TOURNAMENT_INVITE': {
+      if (newState.activeTournament) { newState.weekLog = ['Already in a tournament!']; break; }
+      newState = acceptTournamentInvite(newState, action.inviteId);
+      break;
+    }
+
+    case 'DECLINE_TOURNAMENT_INVITE':
+      newState = declineTournamentInvite(newState, action.inviteId);
+      newState.weekLog = [...newState.weekLog, '📩 Tournament invite declined.'];
+      break;
+
     case 'BUY_EQUIPMENT': {
       const result = buyEquipment(newState, action.item, action.category);
       if (result) newState = result;
       else newState.weekLog = [...newState.weekLog, "Can't afford that!"];
       break;
     }
+
     case 'GAMBLE':
       newState = gambleSkins(newState, action.amount);
       break;
+
     case 'RESOLVE_EVENT': {
       const eventId = action.eventId ?? newState.currentEvent?.id;
       newState = applyEventChoice(newState, action.choice);
       if (eventId) newState = trackEvent(newState, eventId);
       break;
     }
+
     case 'DISMISS_EVENT': {
       const eventId = action.eventId ?? newState.currentEvent?.id;
       newState = { ...newState, currentEvent: null };
       if (eventId) newState = trackEvent(newState, eventId);
       break;
     }
+
+    case 'SIGN_CONTRACT':
+      newState = signContract(newState, action.offerId);
+      break;
+
+    case 'REJECT_OFFER':
+      newState = rejectOffer(newState, action.offerId);
+      newState.weekLog = [...newState.weekLog, '📋 Contract offer rejected.'];
+      break;
+
+    case 'LEAVE_TEAM':
+      newState = leaveTeam(newState);
+      break;
+
+    case 'RETIRE':
+      newState = retirePlayer(newState);
+      break;
+
     default:
       return state;
   }
@@ -132,9 +156,8 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
   if (WEEK_ACTIONS.has(action.type)) {
     newState = advanceWeek(newState);
     newState = checkProgression(newState);
-    // Update story arc based on new state
     newState = updateArc(newState);
-    // Roll for event (reduced frequency during tournament to cut noise)
+    // Events less frequent during tourney
     if (action.type !== 'PLAY_TOURNAMENT_MATCH' || Math.random() > 0.6) {
       const event = rollForEvent(newState);
       if (event) newState.currentEvent = event;
@@ -155,7 +178,17 @@ interface GameContextValue {
 const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(gameReducer, null);
+  const [state, dispatch] = useReducer(gameReducer, null, () => {
+    // Try to restore save on mount
+    try {
+      const saved = localStorage.getItem('cs2-career-save');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return ensureNewStateFields(parsed);
+      }
+    } catch {}
+    return null;
+  });
   return <GameContext.Provider value={{ state, dispatch }}>{children}</GameContext.Provider>;
 }
 

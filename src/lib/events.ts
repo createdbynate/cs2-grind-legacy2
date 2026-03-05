@@ -1130,6 +1130,18 @@ export const RICH_EVENTS: RichEvent[] = [
  */
 export function getAvailableEvents(state: GameState): RichEvent[] {
   const currentArc = state.arc?.type ?? 'none';
+  const currentWeek = state.weeks;
+
+  // Build cooldown map from eventHistory (now {id, week}[] format)
+  const eventHistory = (state.eventHistory ?? []) as Array<{ id: string; week: number } | string>;
+  const recentEventMap = new Map<string, number>();
+  for (const entry of eventHistory) {
+    if (typeof entry === 'string') {
+      recentEventMap.set(entry, 0); // old format — treat as recent
+    } else {
+      recentEventMap.set(entry.id, entry.week);
+    }
+  }
 
   return RICH_EVENTS.filter(event => {
     // Check stage requirement
@@ -1138,8 +1150,10 @@ export function getAvailableEvents(state: GameState): RichEvent[] {
     }
     // Check custom condition
     if (event.condition && !event.condition(state)) return false;
-    // Don't repeat very recent events
-    if (state.eventHistory?.includes(event.id)) return false;
+    // Cooldown check — default 12 weeks between same event
+    const cooldown = event.cooldownWeeks ?? 12;
+    const lastSeen = recentEventMap.get(event.id);
+    if (lastSeen !== undefined && currentWeek - lastSeen < cooldown) return false;
     return true;
   }).map(event => {
     let weight = event.weight;

@@ -233,6 +233,15 @@ export function ensureNewStateFields(state: GameState): GameState {
   if (s.rival === undefined) s.rival = null;
   if (!s.careerNarrative) s.careerNarrative = [];
   if (!s.eventHistory) s.eventHistory = [];
+  // Migrate old string-based eventHistory to object format
+  if (s.eventHistory.length > 0 && typeof s.eventHistory[0] === 'string') {
+    s.eventHistory = (s.eventHistory as unknown as string[]).map(id => ({ id, week: 0 }));
+  }
+  if (!s.activeContract) s.activeContract = null;
+  if (!s.pendingOffers) s.pendingOffers = [];
+  if (!s.pendingTournamentInvites) s.pendingTournamentInvites = [];
+  if (!s.recentRatings) s.recentRatings = [];
+  if (s.faceitElo === undefined) s.faceitElo = 1200;
 
   // Ensure team has morale
   if (s.team && s.team.morale === undefined) {

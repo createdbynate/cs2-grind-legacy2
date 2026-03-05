@@ -6,42 +6,42 @@
 
 @layer base {
   :root {
-    --background: 220 20% 7%;
-    --foreground: 200 20% 90%;
+    --background: 222 25% 6%;
+    --foreground: 210 20% 92%;
 
-    --card: 220 18% 10%;
-    --card-foreground: 200 20% 90%;
+    --card: 222 22% 9%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 220 18% 12%;
-    --popover-foreground: 200 20% 90%;
+    --popover: 222 22% 11%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 170 80% 50%;
-    --primary-foreground: 220 20% 7%;
+    --primary: 160 90% 48%;
+    --primary-foreground: 222 25% 6%;
 
-    --secondary: 220 15% 16%;
-    --secondary-foreground: 200 20% 80%;
+    --secondary: 222 18% 14%;
+    --secondary-foreground: 210 15% 75%;
 
-    --muted: 220 15% 14%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 222 18% 12%;
+    --muted-foreground: 220 12% 48%;
 
-    --accent: 45 100% 55%;
-    --accent-foreground: 220 20% 7%;
+    --accent: 45 100% 58%;
+    --accent-foreground: 222 25% 6%;
 
-    --destructive: 0 70% 55%;
+    --destructive: 0 72% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 18%;
-    --input: 220 15% 16%;
-    --ring: 170 80% 50%;
+    --border: 222 18% 16%;
+    --input: 222 18% 14%;
+    --ring: 160 90% 48%;
 
     --radius: 0.5rem;
 
-    --cs2-green: 120 60% 45%;
-    --cs2-red: 0 70% 55%;
-    --cs2-orange: 30 90% 55%;
-    --cs2-blue: 210 80% 55%;
-    --cs2-purple: 270 60% 60%;
-    --cs2-gold: 45 100% 55%;
+    --cs2-green: 142 65% 42%;
+    --cs2-red: 0 72% 52%;
+    --cs2-orange: 28 92% 55%;
+    --cs2-blue: 212 85% 58%;
+    --cs2-purple: 268 62% 62%;
+    --cs2-gold: 43 100% 56%;
 
     --sidebar-background: 220 18% 10%;
     --sidebar-foreground: 200 20% 90%;
@@ -102,4 +102,40 @@
     @apply h-2 rounded-full;
     background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--cs2-blue)));
   }
+  .bg-cs2-blue { background-color: hsl(var(--cs2-blue)); }
+  .bg-cs2-orange { background-color: hsl(var(--cs2-orange)); }
+  .bg-cs2-gold { background-color: hsl(var(--cs2-gold)); }
+  .bg-cs2-purple { background-color: hsl(var(--cs2-purple)); }
+  .text-cs2-purple { color: hsl(var(--cs2-purple)); }
+  .border-cs2-green { border-color: hsl(var(--cs2-green)); }
+  .border-cs2-blue { border-color: hsl(var(--cs2-blue)); }
+  .border-cs2-orange { border-color: hsl(var(--cs2-orange)); }
+  .border-cs2-gold { border-color: hsl(var(--cs2-gold)); }
+  .border-cs2-purple { border-color: hsl(var(--cs2-purple)); }
+  .bg-cs2-green\/5 { background-color: hsl(var(--cs2-green) / 0.05); }
+  .bg-cs2-green\/10 { background-color: hsl(var(--cs2-green) / 0.1); }
+  .bg-cs2-green\/20 { background-color: hsl(var(--cs2-green) / 0.2); }
+  .bg-cs2-green\/30 { background-color: hsl(var(--cs2-green) / 0.3); }
+  .bg-cs2-blue\/5 { background-color: hsl(var(--cs2-blue) / 0.05); }
+  .bg-cs2-blue\/10 { background-color: hsl(var(--cs2-blue) / 0.1); }
+  .bg-cs2-orange\/5 { background-color: hsl(var(--cs2-orange) / 0.05); }
+  .bg-cs2-orange\/10 { background-color: hsl(var(--cs2-orange) / 0.1); }
+  .bg-cs2-gold\/5 { background-color: hsl(var(--cs2-gold) / 0.05); }
+  .bg-cs2-gold\/10 { background-color: hsl(var(--cs2-gold) / 0.1); }
+  .bg-cs2-gold\/20 { background-color: hsl(var(--cs2-gold) / 0.2); }
+  .border-cs2-green\/30 { border-color: hsl(var(--cs2-green) / 0.3); }
+  .border-cs2-green\/40 { border-color: hsl(var(--cs2-green) / 0.4); }
+  .border-cs2-green\/50 { border-color: hsl(var(--cs2-green) / 0.5); }
+  .border-cs2-blue\/30 { border-color: hsl(var(--cs2-blue) / 0.3); }
+  .border-cs2-blue\/40 { border-color: hsl(var(--cs2-blue) / 0.4); }
+  .border-cs2-orange\/30 { border-color: hsl(var(--cs2-orange) / 0.3); }
+  .border-cs2-orange\/40 { border-color: hsl(var(--cs2-orange) / 0.4); }
+  .border-cs2-orange\/60 { border-color: hsl(var(--cs2-orange) / 0.6); }
+  .border-cs2-gold\/30 { border-color: hsl(var(--cs2-gold) / 0.3); }
+  .border-cs2-gold\/40 { border-color: hsl(var(--cs2-gold) / 0.4); }
+  .border-cs2-gold\/50 { border-color: hsl(var(--cs2-gold) / 0.5); }
+  .border-cs2-gold\/60 { border-color: hsl(var(--cs2-gold) / 0.6); }
+  .border-cs2-gold\/80 { border-color: hsl(var(--cs2-gold) / 0.8); }
+  .border-cs2-purple\/40 { border-color: hsl(var(--cs2-purple) / 0.4); }
+  .glow-gold-sm { box-shadow: 0 0 12px hsl(var(--cs2-gold) / 0.25); }
 }

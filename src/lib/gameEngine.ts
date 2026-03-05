@@ -2,8 +2,10 @@ import {
   GameState, TrainingFocus, MatchResult, GameEvent, EventChoice,
   Role, Region, CareerStage, Attributes, Equipment,
   EQUIPMENT_PRICES, MonitorTier, MouseTier, KeyboardTier, PCTier,
-  Tournament, TournamentType, TournamentResult, Teammate, AVAILABLE_TOURNAMENTS,
+  Tournament, TournamentType, TournamentResult, Teammate,
   ENERGY_COSTS, TeammatePersonality,
+  ContractOffer, ActiveContract, TournamentInvite,
+  FACEIT_LEVEL_ELO,
 } from '@/types/game';
 import {
   rollForStoryEvent, updateStreak, updateArc,
@@ -11,43 +13,51 @@ import {
   confidenceMultiplier, ensureNewStateFields,
 } from '@/lib/storyEngine';
 
-// ─── PLAYER NAME POOL (for teammates) ───
+// ─── TEAMMATE NAME POOLS ───
 const TEAMMATE_NAMES: Record<Region, string[]> = {
   EU: ['k0nfig', 'dupreeh', 'Xyp9x', 'magisk', 'es3tag', 'hallzerk', 'stavn', 'TeSeS', 'nicoodoz',
        'hampus', 'REZ', 'Plopski', 'twist', 'Golden', 'valde', 'AcoR', 'gade', 'Snappi', 'farlig',
-       'Blamef', 'CadiaN', 'jks', 'tabseN', 'syrsoN', 'Bymas', 'neityu', 'flameZ'],
+       'Blamef', 'CadiaN', 'jks', 'tabseN', 'syrsoN', 'Bymas', 'neityu', 'flameZ', 'torzsi', 'siuhy'],
   CIS: ['Buster', 'Perfecto', 'YEKINDAR', 'Qikert', 'Ax1Le', 'nafany', 'sdy', 'Forester',
-        'iDISBALANCE', 'Jame', 'FL1T', 'n0rb3r7', 'KaiR0N', 'electroNic', 'b1t', 'fame'],
+        'iDISBALANCE', 'Jame', 'FL1T', 'n0rb3r7', 'KaiR0N', 'electroNic', 'b1t', 'fame',
+        'donk', 'magixx', 'w0nderful', 'chopper'],
   NA:  ['Twistzz', 'NAF', 'Stewie2K', 'tarik', 'RUSH', 'FugLy', 'daps', 'stanislaw',
-        'autimatic', 'nitr0', 'Ethan', 'cerq', 'oSee', 'wiz', 'junior', 'Grim', 'floppy'],
+        'autimatic', 'nitr0', 'Ethan', 'cerq', 'oSee', 'wiz', 'junior', 'Grim', 'floppy', 'malbsMd'],
   SA:  ['KSCERATO', 'yuurih', 'chelo', 'HEN1', 'VINI', 'FalleN', 'fer', 'coldzera', 'taco',
-        'boltz', 'LUCAS1', 'exit', 'peacemaker', 'arT', 'saffee', 'dumau'],
-  Asia:['EliGE', 'oskar', 'xccurate', 'Stark', 'Brehze', 'SANJI', 'Techno4K', 'shalfari',
-        'BnTeT', 'Skyfire', 'mzinho', 'Thomas', 'Woro2k', 'niqua', 'dycha'],
+        'boltz', 'LUCAS1', 'exit', 'arT', 'saffee', 'dumau', 'drop', 'skullz'],
+  Asia: ['EliGE', 'xccurate', 'Stark', 'BnTeT', 'Skyfire', 'mzinho', 'Thomas', 'Woro2k',
+         'niqua', 'dycha', 'Techno4K', 'shalfari', 'oskar', 'sense', 'sh1ro'],
 };
 
 const ROLES: Role[] = ['Entry Fragger', 'AWPer', 'IGL', 'Support', 'Lurker'];
 const PERSONALITIES: TeammatePersonality[] = ['aggressive', 'supportive', 'passive', 'toxic', 'leader'];
 
+// ─── TEAM NAME POOLS ───
+const TEAM_NAMES: Record<string, string[]> = {
+  Academy: ['Vitality Academy', 'NAVI Junior', 'G2 Academy', 'FaZe Rising', 'Cloud9 Academy', 'Astralis Talent', 'Heroic Academy'],
+  'Tier 3': ['ENCE', 'Into The Breach', 'Apeks', 'SAW', 'Monte', 'Sangal', 'Passion UA', 'Sprout', '500', 'Lynn Vision'],
+  'Tier 2': ['MOUZ', 'Complexity', 'Imperial', 'paiN', 'OG', 'Eternal Fire', 'BIG', 'Ninjas in Pyjamas', 'FURIA', 'Falcons'],
+  'Tier 1': ['NAVI', 'Vitality', 'FaZe', 'G2', 'Cloud9', 'Heroic', 'Astralis', 'Spirit', 'MOUZ', 'Liquid'],
+  'Major Contender': ['NAVI', 'Vitality', 'FaZe', 'G2', 'Spirit', 'MOUZ'],
+};
+
 function generateTeammates(region: Region, tier: CareerStage): Teammate[] {
   const pool = [...TEAMMATE_NAMES[region]];
   const teammates: Teammate[] = [];
   const tierSkillBase: Record<string, number> = {
-    'Academy': 35, 'Tier 3': 50, 'Tier 2': 65, 'Tier 1': 78, 'Major Contender': 88,
+    'Academy': 38, 'Tier 3': 52, 'Tier 2': 66, 'Tier 1': 80, 'Major Contender': 88,
   };
   const base = tierSkillBase[tier] ?? 40;
 
   for (let i = 0; i < 4; i++) {
     const idx = Math.floor(Math.random() * pool.length);
-    const name = pool.splice(idx, 1)[0];
-    const role = ROLES[Math.floor(Math.random() * ROLES.length)];
-    const personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
+    const name = pool.splice(idx, 1)[0] ?? `Player${i}`;
     teammates.push({
       name,
-      role,
+      role: ROLES[Math.floor(Math.random() * ROLES.length)],
       skill: Math.floor(base + Math.random() * 15 - 5),
       chemistry: 40 + Math.floor(Math.random() * 20),
-      personality,
+      personality: PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)],
       mood: 60 + Math.floor(Math.random() * 30),
     });
   }
@@ -56,6 +66,7 @@ function generateTeammates(region: Region, tier: CareerStage): Teammate[] {
 
 // ─── INITIALIZATION ───
 export function createInitialState(name: string, age: number, role: Role, region: Region): GameState {
+  const startElo = 1050 + Math.floor(Math.random() * 300); // start mid-level 5
   return {
     playerName: name,
     age,
@@ -65,39 +76,43 @@ export function createInitialState(name: string, age: number, role: Role, region
     stage: 'FaceIt Grind',
     stats: {
       adr: 55 + Math.random() * 15,
-      kd: 0.8 + Math.random() * 0.3,
-      hsPercent: 30 + Math.random() * 20,
-      kast: 55 + Math.random() * 10,
-      rating: 0.85 + Math.random() * 0.2,
+      kd: 0.85 + Math.random() * 0.25,
+      hsPercent: 32 + Math.random() * 18,
+      kast: 56 + Math.random() * 10,
+      rating: 0.9 + Math.random() * 0.2,
       clutchPercent: 5 + Math.random() * 10,
     },
     attributes: {
-      aim: 20 + Math.floor(Math.random() * 15),
-      positioning: 15 + Math.floor(Math.random() * 10),
-      gameIQ: 15 + Math.floor(Math.random() * 10),
+      aim: 22 + Math.floor(Math.random() * 14),
+      positioning: 16 + Math.floor(Math.random() * 12),
+      gameIQ: 16 + Math.floor(Math.random() * 12),
       nadeUsage: 10 + Math.floor(Math.random() * 10),
-      communication: 15 + Math.floor(Math.random() * 10),
+      communication: 15 + Math.floor(Math.random() * 12),
       mentalStrength: 20 + Math.floor(Math.random() * 15),
-      consistency: 20 + Math.floor(Math.random() * 10),
+      consistency: 20 + Math.floor(Math.random() * 12),
     },
-    lifestyle: { hoursPerDay: 6, sleepQuality: 70, physicalHealth: 80, motivation: 85, tiltLevel: 10 },
+    lifestyle: { hoursPerDay: 6, sleepQuality: 70, physicalHealth: 82, motivation: 88, tiltLevel: 10 },
     equipment: { monitor: '60Hz', mouse: 'Budget', keyboard: 'Membrane', pc: 'Potato' },
     team: null,
-    money: 50,
-    reputation: 10,
+    activeContract: null,
+    pendingOffers: [],
+    money: 150,
+    reputation: 5,
     matchesPlayed: 0,
     matchesWon: 0,
-    faceitLevel: 1,
+    lastMatchResult: null,
+    recentRatings: [],
+    faceitLevel: 5,
+    faceitElo: startElo,
     earnings: 0,
     energy: 100,
     activeTournament: null,
+    pendingTournamentInvites: [],
     tournamentHistory: [],
     currentEvent: null,
-    lastMatchResult: null,
-    weekLog: ['Your CS2 journey begins. Time to grind.'],
+    weekLog: [`Your CS2 journey begins. You're FACEIT Level 5 (${startElo} ELO). Time to grind.`],
     gameOver: false,
     achievements: [],
-    // New systems
     personality: {
       professionalism: 50,
       toxicity: 10,
@@ -115,11 +130,29 @@ export function createInitialState(name: string, age: number, role: Role, region
 
 // ─── AGE MODIFIER ───
 function ageMod(age: number): number {
-  if (age >= 17 && age <= 24) return 1.0;
-  if (age < 17) return 0.85;
-  if (age <= 27) return 0.9;
-  if (age <= 30) return 0.7;
-  return 0.4;
+  if (age <= 17) return 1.05; // young players learn faster
+  if (age <= 24) return 1.0;
+  if (age <= 27) return 0.92;
+  if (age <= 30) return 0.75;
+  if (age <= 33) return 0.55;
+  return 0.35;
+}
+
+// ─── SKILL DECAY (for 27+) ───
+function applySkillDecay(state: GameState): GameState {
+  if (state.age < 27) return state;
+
+  const decayRate = state.age >= 30 ? 0.3 : state.age >= 28 ? 0.15 : 0.05;
+  // Aim and positioning decay most, IQ and comms decay least
+  return {
+    ...state,
+    attributes: {
+      ...state.attributes,
+      aim: Math.max(10, state.attributes.aim - decayRate * (1 + Math.random() * 0.5)),
+      positioning: Math.max(10, state.attributes.positioning - decayRate * 0.6),
+      consistency: Math.max(10, state.attributes.consistency - decayRate * 0.4),
+    },
+  };
 }
 
 function equipmentBonus(eq: Equipment): number {
@@ -160,12 +193,18 @@ function calculatePerformance(state: GameState): number {
   return baseSkill * (0.7 + Math.random() * 0.6) * (1 + mentality * 0.3) * ageM * confM;
 }
 
+// ─── OVERALL SKILL SCORE ───
+export function getOverallSkill(state: GameState): number {
+  const a = state.attributes;
+  return (a.aim * 0.3 + a.positioning * 0.2 + a.gameIQ * 0.2 + a.consistency * 0.15 + a.communication * 0.1 + a.nadeUsage * 0.05);
+}
+
 // ─── TRAINING ───
 export function applyTraining(state: GameState, focus: TrainingFocus): GameState {
   const s = { ...state, attributes: { ...state.attributes }, lifestyle: { ...state.lifestyle } };
 
   const energyMod = energyMultiplier(s.energy);
-  const dedicationMod = 1 + (s.personality.dedication / 200); // up to 1.5x
+  const dedicationMod = 1 + (s.personality.dedication / 200);
   const gain = (1 + Math.random()) * ageMod(s.age) * (s.lifestyle.motivation / 100) * energyMod * dedicationMod;
   const attrKey = focus === 'nades' ? 'nadeUsage' : focus;
   s.attributes[attrKey] = Math.min(99, s.attributes[attrKey] + gain);
@@ -180,7 +219,6 @@ export function applyTraining(state: GameState, focus: TrainingFocus): GameState
     s.weekLog = [...(s.weekLog ?? []), `⚠️ Exhausted — training at ${Math.round(energyMod * 100)}% efficiency.`];
   }
 
-  // Dedication naturally grows from training
   if (s.personality && Math.random() > 0.7) {
     s.personality = { ...s.personality, dedication: Math.min(100, s.personality.dedication + 1) };
   }
@@ -233,8 +271,6 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
   const rating = Math.round((0.6 + performance * 0.9 + Math.random() * 0.2) * 100) / 100;
   const won = performance + Math.random() * 0.3 > 0.5;
   const mvp = performance > 0.65 && Math.random() > 0.5;
-
-  // Clutch moment: high mental strength + high stakes
   const clutchMoment = attr.mentalStrength > 60 && Math.random() < 0.12 + (state.personality.clutchReputation / 500);
 
   const matchType: MatchResult['type'] =
@@ -253,7 +289,7 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
 
   let newState = { ...state, stats: { ...state.stats }, lifestyle: { ...state.lifestyle } };
 
-  // Update rolling averages
+  // Rolling averages
   const m = newState.matchesPlayed;
   newState.stats.adr = Math.round((newState.stats.adr * m + adr) / (m + 1));
   newState.stats.kd = Math.round(((newState.stats.kd * m + kills / Math.max(1, deaths)) / (m + 1)) * 100) / 100;
@@ -264,10 +300,32 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
     (newState.stats.clutchPercent * m + (performance > 0.6 ? 10 + Math.random() * 15 : Math.random() * 8)) / (m + 1)
   );
 
+  // Track recent ratings for performance clause
+  newState.recentRatings = [...(newState.recentRatings ?? []), rating].slice(-8);
+
   newState.matchesPlayed++;
   if (won) newState.matchesWon++;
   newState.lastMatchResult = result;
   newState.energy = Math.max(0, newState.energy - ENERGY_COSTS.match);
+
+  // FACEIT ELO update (during FaceIt Grind)
+  if (newState.stage === 'FaceIt Grind') {
+    const eloChange = won
+      ? Math.floor(20 + Math.random() * 15 + (performance > 0.7 ? 10 : 0))
+      : -Math.floor(15 + Math.random() * 15);
+    newState.faceitElo = Math.max(0, newState.faceitElo + eloChange);
+    // Update faceit level based on ELO
+    for (const [lvl, [min, max]] of Object.entries(FACEIT_LEVEL_ELO)) {
+      if (newState.faceitElo >= min && newState.faceitElo <= max) {
+        newState.faceitLevel = Number(lvl);
+        break;
+      }
+    }
+    if (newState.faceitElo > 3500) newState.faceitLevel = 10;
+    const eloSign = eloChange >= 0 ? '+' : '';
+    newState.weekLog = [...(newState.weekLog ?? []),
+      `${won ? '✅' : '❌'} FACEIT ${won ? 'W' : 'L'} — ${kills}/${deaths} | ${rating} Rating | ELO: ${newState.faceitElo} (${eloSign}${eloChange})`];
+  }
 
   if (!won) {
     newState.lifestyle.tiltLevel = Math.min(100, newState.lifestyle.tiltLevel + 5 + Math.random() * 5);
@@ -286,15 +344,12 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
     };
   }
 
-  // Streak update
   newState = updateStreak(newState, won);
 
-  // Money from match
+  // Money from matches (team salary handled in checkProgression)
   if (matchType === 'pug' && won) newState.money += Math.floor(2 + Math.random() * 5);
-  if (matchType === 'official' && won) newState.money += Math.floor(50 + Math.random() * 200);
-  if (matchType === 'official' && mvp) newState.money += Math.floor(100 + Math.random() * 200);
+  if (matchType === 'scrim' && won) newState.money += Math.floor(10 + Math.random() * 30);
 
-  // Streak milestone log
   const streakMsgNew = getStreakMessage(newState.streak.current);
   if (streakMsgNew) {
     newState.weekLog = [...(newState.weekLog ?? []), streakMsgNew];
@@ -306,10 +361,10 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
 // ─── REST ───
 export function applyRest(state: GameState): GameState {
   const s = { ...state, lifestyle: { ...state.lifestyle } };
-  s.lifestyle.sleepQuality = Math.min(100, s.lifestyle.sleepQuality + 10);
-  s.lifestyle.physicalHealth = Math.min(100, s.lifestyle.physicalHealth + 5);
-  s.lifestyle.motivation = Math.min(100, s.lifestyle.motivation + 8);
-  s.lifestyle.tiltLevel = Math.max(0, s.lifestyle.tiltLevel - 15);
+  s.lifestyle.sleepQuality = Math.min(100, s.lifestyle.sleepQuality + 12);
+  s.lifestyle.physicalHealth = Math.min(100, s.lifestyle.physicalHealth + 6);
+  s.lifestyle.motivation = Math.min(100, s.lifestyle.motivation + 10);
+  s.lifestyle.tiltLevel = Math.max(0, s.lifestyle.tiltLevel - 18);
   s.energy = Math.min(100, s.energy + 50);
   return s;
 }
@@ -317,27 +372,34 @@ export function applyRest(state: GameState): GameState {
 // ─── STREAMING ───
 export function applyStreaming(state: GameState): GameState {
   const s = { ...state, lifestyle: { ...state.lifestyle } };
-  const viewers = Math.floor(s.reputation * 2 + Math.random() * 50);
-  const income = Math.floor(viewers * 0.1 + Math.random() * 10);
+  const stageMultiplier = { 'FaceIt Grind': 0.5, 'FPL-C': 0.8, 'FPL': 1.2, 'Academy': 1.5, 'Tier 3': 2.0, 'Tier 2': 4.0, 'Tier 1': 10.0, 'Major Contender': 20.0, 'Retired': 5.0 };
+  const mult = stageMultiplier[state.stage] ?? 1;
+  const viewers = Math.floor(s.reputation * 3 * mult + Math.random() * 50 * mult);
+  const income = Math.floor(viewers * 0.12 + Math.random() * 20 * mult);
   s.money += income;
   s.reputation = Math.min(100, s.reputation + (Math.random() > 0.7 ? 2 : 0.5));
   s.lifestyle.motivation = Math.max(0, s.lifestyle.motivation - 3);
   s.energy = Math.max(0, s.energy - ENERGY_COSTS.stream);
-  s.weekLog = [...s.weekLog, `📺 Streamed to ${viewers} viewers, earned $${income}`];
+  s.weekLog = [...s.weekLog, `📺 Streamed to ${viewers.toLocaleString()} viewers, earned $${income.toLocaleString()}`];
   return s;
 }
 
 // ─── TOURNAMENT HELPERS ───
 function getTournamentOpponentStrength(tournament: Tournament): number {
   const baseStrengths: Record<TournamentType, number> = {
-    'Open Qualifier': 0.38,
-    'Regional': 0.48,
-    'Pro League': 0.57,
-    'Major Qualifier': 0.67,
-    'Major': 0.77,
+    'ESEA Open': 0.32,
+    'ESEA Main': 0.40,
+    'ESEA Advanced': 0.48,
+    'ESEA Premier': 0.55,
+    'ESL Challenger': 0.60,
+    'ESL Pro League': 0.68,
+    'IEM': 0.72,
+    'BLAST Premier': 0.74,
+    'PGL Major Qualifier': 0.72,
+    'Valve Major': 0.80,
   };
-  const base = baseStrengths[tournament.type];
-  const roundScaling = (tournament.currentRound / Math.max(1, tournament.rounds - 1)) * 0.12;
+  const base = baseStrengths[tournament.type] ?? 0.5;
+  const roundScaling = (tournament.currentRound / Math.max(1, tournament.rounds - 1)) * 0.15;
   return Math.min(0.93, base + roundScaling);
 }
 
@@ -347,7 +409,7 @@ function getTournamentPlacement(tournament: Tournament): string {
   if (roundsLeft === 1) return '2nd Place';
   if (roundsLeft === 2) return 'Top 4';
   if (roundsLeft === 3) return 'Top 8';
-  return 'Group Stage';
+  return 'Group Stage Exit';
 }
 
 function getTournamentPrizePct(tournament: Tournament): number {
@@ -359,27 +421,11 @@ function getTournamentPrizePct(tournament: Tournament): number {
   return 0.02;
 }
 
-export function getEligibleTournaments(state: GameState): typeof AVAILABLE_TOURNAMENTS {
-  const stageOrder: CareerStage[] = ['FaceIt Grind', 'FPL-C', 'FPL', 'Academy', 'Tier 3', 'Tier 2', 'Tier 1', 'Major Contender'];
-  const playerIdx = stageOrder.indexOf(state.stage);
-  return AVAILABLE_TOURNAMENTS.filter(t => stageOrder.indexOf(t.minStage) <= playerIdx);
-}
-
-export function enterTournament(state: GameState, tournamentId: string): GameState {
-  const template = AVAILABLE_TOURNAMENTS.find(t => t.id === tournamentId);
-  if (!template || state.activeTournament) return state;
-
-  const tournament: Tournament = { ...template, currentRound: 0, wins: 0, eliminated: false, won: false };
-  const s = { ...state, activeTournament: tournament };
-  s.weekLog = [...s.weekLog, `🏟️ Entered ${tournament.name}! Round 1 starts next week.`];
-  return s;
-}
-
 export function playTournamentMatch(state: GameState): { state: GameState; result: MatchResult } {
   if (!state.activeTournament) return simulateMatch(state);
 
   const tournament = { ...state.activeTournament };
-  const roundNames = ['Group Stage', 'Round of 16', 'Quarterfinal', 'Semifinal', 'Grand Final', 'Grand Final'];
+  const roundNames = ['Group Stage', 'Round of 16', 'Quarterfinal', 'Semifinal', 'Grand Final'];
   const roundName = roundNames[Math.min(tournament.currentRound, roundNames.length - 1)];
 
   const performance = calculatePerformance(state);
@@ -391,13 +437,13 @@ export function playTournamentMatch(state: GameState): { state: GameState; resul
   const rating = Math.round((0.6 + performance * 0.9 + Math.random() * 0.2) * 100) / 100;
 
   const opponentStrength = getTournamentOpponentStrength(tournament);
-  // Clutch reputation gives edge in big matches
   const clutchBonus = (state.personality.clutchReputation / 1000);
   const won = performance + clutchBonus > opponentStrength * (0.85 + Math.random() * 0.3);
   const mvp = won && performance > 0.65 && Math.random() > 0.5;
   const clutchMoment = attr.mentalStrength > 55 && Math.random() < 0.15;
 
-  const matchType: MatchResult['type'] = tournament.type === 'Major' ? 'major' : 'qualifier';
+  const isValveMajor = tournament.type === 'Valve Major';
+  const matchType: MatchResult['type'] = isValveMajor ? 'major' : 'qualifier';
   const result: MatchResult = { won, kills, deaths, adr, rating, mvp, type: matchType, tournamentRound: roundName, clutchMoment };
 
   let newState = { ...state, stats: { ...state.stats }, lifestyle: { ...state.lifestyle } };
@@ -412,6 +458,7 @@ export function playTournamentMatch(state: GameState): { state: GameState; resul
     (newState.stats.clutchPercent * m + (performance > 0.6 ? 10 + Math.random() * 15 : Math.random() * 8)) / (m + 1)
   );
 
+  newState.recentRatings = [...(newState.recentRatings ?? []), rating].slice(-8);
   newState.matchesPlayed++;
   if (won) newState.matchesWon++;
   newState.lastMatchResult = result;
@@ -434,45 +481,41 @@ export function playTournamentMatch(state: GameState): { state: GameState; resul
 
   newState = updateStreak(newState, won);
 
-  // Tournament result
   if (won) {
     tournament.wins++;
     tournament.currentRound++;
     if (tournament.currentRound >= tournament.rounds) {
       tournament.won = true;
       const prize = tournament.prizePool;
-      const placement = getTournamentPlacement(tournament);
+      const placement = '1st Place 🏆';
       const tResult: TournamentResult = { name: tournament.name, type: tournament.type, placement, prize };
       newState.money += prize;
       newState.earnings += prize;
-      newState.reputation = Math.min(100, newState.reputation + 20);
+      const repGain = 10 + tournament.prestige * 4;
+      newState.reputation = Math.min(100, newState.reputation + repGain);
       newState.activeTournament = null;
       newState.tournamentHistory = [...newState.tournamentHistory, tResult];
       newState.weekLog = [...newState.weekLog,
-        `🏆 WON ${tournament.name}! ${placement} — Prize: $${prize.toLocaleString()}! Rep +20`];
+        `🏆 WON ${tournament.name}! ${placement} — $${prize.toLocaleString()} · Rep +${repGain}`];
+      newState = addNarrativeEntry(newState, `Won ${tournament.name} — Champion — $${prize.toLocaleString()}`, 'achievement');
 
-      newState = addNarrativeEntry(
-        newState,
-        `Won ${tournament.name} — ${placement} — $${prize.toLocaleString()}`,
-        'milestone'
-      );
-
-      if (tournament.type === 'Major') {
-        newState.achievements = [...newState.achievements, 'Major Champion'];
-        newState.gameOver = true;
-        newState.gameOverReason = `You won the CS2 Major! The world bows to ${newState.playerName}.`;
-        newState = addNarrativeEntry(newState, 'CS2 MAJOR CHAMPION. The dream is real.', 'achievement');
+      if (isValveMajor) {
+        newState.achievements = [...newState.achievements, 'Valve Major Champion'];
+        newState = addNarrativeEntry(newState, 'VALVE MAJOR CHAMPION. The greatest achievement in CS2.', 'achievement');
+        // NOT game over anymore — just the biggest milestone
+        newState.weekLog = [...newState.weekLog,
+          `🌟 MAJOR CHAMPION. Your name is etched in CS2 history. The journey continues.`];
       }
     } else {
       newState.activeTournament = tournament;
       newState.weekLog = [...newState.weekLog,
-        `✅ [${tournament.name}] ${roundName} — ${kills}/${deaths} | ${rating} Rating | Advancing to Round ${tournament.currentRound + 1}`];
+        `✅ [${tournament.name}] ${roundName} — ${kills}/${deaths} | ${rating} Rating | Advancing!`];
     }
   } else {
     tournament.eliminated = true;
     const placement = getTournamentPlacement(tournament);
     const prize = Math.floor(tournament.prizePool * getTournamentPrizePct(tournament));
-    const repGain = Math.floor(tournament.currentRound * 2);
+    const repGain = Math.max(1, tournament.currentRound * tournament.prestige);
     const tResult: TournamentResult = { name: tournament.name, type: tournament.type, placement, prize };
     newState.money += prize;
     newState.earnings += prize;
@@ -480,13 +523,11 @@ export function playTournamentMatch(state: GameState): { state: GameState; resul
     newState.activeTournament = null;
     newState.tournamentHistory = [...newState.tournamentHistory, tResult];
     newState.weekLog = [...newState.weekLog,
-      `❌ Eliminated from ${tournament.name}. ${placement} — $${prize.toLocaleString()} prize money.`];
+      `❌ Eliminated from ${tournament.name}. ${placement} — $${prize.toLocaleString()}`];
 
-    if (tournament.currentRound >= 3) {
+    if (tournament.currentRound >= 2) {
       newState = addNarrativeEntry(
-        newState,
-        `${placement} at ${tournament.name} — $${prize.toLocaleString()}`,
-        'milestone'
+        newState, `${placement} at ${tournament.name} — $${prize.toLocaleString()}`, 'milestone'
       );
     }
   }
@@ -494,148 +535,414 @@ export function playTournamentMatch(state: GameState): { state: GameState; resul
   return { state: newState, result };
 }
 
+// ─── LEAVE TEAM ───
+export function leaveTeam(state: GameState): GameState {
+  if (!state.team) return state;
+  let s = { ...state };
+  const teamName = s.team!.name;
+  s.team = null;
+  s.activeContract = null;
+  // Leaving hurts professionalism unless contract expired
+  s.personality = {
+    ...s.personality,
+    professionalism: Math.max(0, s.personality.professionalism - 15),
+    reliability: Math.max(0, s.personality.reliability - 10),
+  };
+  s.weekLog = [...s.weekLog, `🚪 Left ${teamName}. Free agent. Professionalism hit.`];
+  s = addNarrativeEntry(s, `Requested release from ${teamName}. Burning bridges.`, 'drama');
+  return s;
+}
+
+// ─── CONTRACT OFFER GENERATION ───
+function generateContractOffer(state: GameState, tier: CareerStage): ContractOffer {
+  const salaries: Record<string, [number, number]> = {
+    'Academy':          [1500,  3500],
+    'Tier 3':           [3000,  7000],
+    'Tier 2':           [7000, 18000],
+    'Tier 1':          [15000, 45000],
+    'Major Contender': [35000, 80000],
+  };
+  const [minSal, maxSal] = salaries[tier] ?? [1000, 3000];
+  const monthlyUSD = Math.floor(minSal + Math.random() * (maxSal - minSal));
+
+  const teamPool = TEAM_NAMES[tier] ?? TEAM_NAMES['Tier 3'];
+  const teamName = teamPool[Math.floor(Math.random() * teamPool.length)];
+
+  const durations: (26 | 52 | 78)[] = [26, 52, 78];
+  const durationWeeks = durations[Math.floor(Math.random() * durations.length)];
+
+  const signingBonus = Math.floor(monthlyUSD * (0.5 + Math.random() * 1.5));
+
+  // Performance clause scales with tier
+  const clauseMap: Record<string, number> = {
+    'Academy': 0.85, 'Tier 3': 0.95, 'Tier 2': 1.05, 'Tier 1': 1.15, 'Major Contender': 1.20,
+  };
+  const performanceClause = clauseMap[tier] ?? 0.9;
+
+  return {
+    id: `offer_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    teamName,
+    tier,
+    monthlyUSD,
+    durationWeeks,
+    signingBonus,
+    performanceClause,
+    expiresWeek: state.weeks + 8,
+  };
+}
+
+// ─── SIGN CONTRACT ───
+export function signContract(state: GameState, offerId: string): GameState {
+  const offer = (state.pendingOffers ?? []).find(o => o.id === offerId);
+  if (!offer) return state;
+
+  let s = { ...state };
+  const teammates = generateTeammates(s.region, offer.tier);
+  const tierSalary: Record<string, number> = {
+    'Academy': offer.monthlyUSD * 4,
+    'Tier 3': offer.monthlyUSD * 4,
+    'Tier 2': offer.monthlyUSD * 4,
+    'Tier 1': offer.monthlyUSD * 4,
+    'Major Contender': offer.monthlyUSD * 4,
+  };
+
+  s.team = {
+    name: offer.teamName,
+    tier: offer.tier,
+    chemistry: 45 + Math.floor(Math.random() * 20),
+    salary: tierSalary[offer.tier] ?? offer.monthlyUSD * 4,
+    morale: 65 + Math.floor(Math.random() * 20),
+    teammates,
+  };
+
+  s.activeContract = {
+    teamName: offer.teamName,
+    tier: offer.tier,
+    monthlyUSD: offer.monthlyUSD,
+    durationWeeks: offer.durationWeeks,
+    startWeek: s.weeks,
+    endWeek: s.weeks + offer.durationWeeks,
+    performanceClause: offer.performanceClause,
+    poorFormStreak: 0,
+  };
+
+  // Signing bonus
+  s.money += offer.signingBonus;
+  s.earnings += offer.signingBonus;
+
+  // Update stage if this is a promotion
+  const stageOrder: CareerStage[] = ['FaceIt Grind', 'FPL-C', 'FPL', 'Academy', 'Tier 3', 'Tier 2', 'Tier 1', 'Major Contender'];
+  const currentIdx = stageOrder.indexOf(s.stage);
+  const offerIdx = stageOrder.indexOf(offer.tier);
+  if (offerIdx > currentIdx) {
+    s.stage = offer.tier;
+    s.achievements = [...s.achievements, `${offer.tier} Pro`];
+    s = addNarrativeEntry(s, `Signed with ${offer.teamName} (${offer.tier}). $${offer.monthlyUSD.toLocaleString()}/month.`, 'milestone');
+  } else {
+    s = addNarrativeEntry(s, `Re-signed / transferred to ${offer.teamName}. $${offer.monthlyUSD.toLocaleString()}/month.`, 'milestone');
+  }
+
+  // Clear offers
+  s.pendingOffers = [];
+  s.weekLog = [...s.weekLog,
+    `✍️ Signed with ${offer.teamName}! $${offer.monthlyUSD.toLocaleString()}/mo · $${offer.signingBonus.toLocaleString()} signing bonus · ${offer.durationWeeks}wk contract`];
+
+  // Rival may appear
+  if (!s.rival && s.stage !== 'FaceIt Grind' && s.stage !== 'FPL-C' && Math.random() > 0.5) {
+    s.rival = generateRival(s);
+    s.weekLog = [...s.weekLog, `👀 ${s.rival.name} is emerging as your rival. The scene is watching.`];
+  }
+
+  return s;
+}
+
+// ─── REJECT CONTRACT OFFER ───
+export function rejectOffer(state: GameState, offerId: string): GameState {
+  return {
+    ...state,
+    pendingOffers: (state.pendingOffers ?? []).filter(o => o.id !== offerId),
+  };
+}
+
+// ─── ACCEPT TOURNAMENT INVITE ───
+export function acceptTournamentInvite(state: GameState, inviteId: string): GameState {
+  const invite = (state.pendingTournamentInvites ?? []).find(i => i.id === inviteId);
+  if (!invite || state.activeTournament) return state;
+
+  const tournament: Tournament = {
+    ...invite,
+    currentRound: 0,
+    wins: 0,
+    eliminated: false,
+    won: false,
+  };
+
+  const s = {
+    ...state,
+    activeTournament: tournament,
+    pendingTournamentInvites: (state.pendingTournamentInvites ?? []).filter(i => i.id !== inviteId),
+  };
+  s.weekLog = [...s.weekLog, `🏟️ Accepted invite to ${invite.name}! Competition starts next week.`];
+  return s;
+}
+
+// ─── DECLINE TOURNAMENT INVITE ───
+export function declineTournamentInvite(state: GameState, inviteId: string): GameState {
+  return {
+    ...state,
+    pendingTournamentInvites: (state.pendingTournamentInvites ?? []).filter(i => i.id !== inviteId),
+  };
+}
+
+// ─── TOURNAMENT INVITE GENERATION ───
+const TOURNAMENT_TEMPLATES: Record<string, { name: string; type: TournamentType; prizePool: number; rounds: number; prestige: number }[]> = {
+  'FaceIt Grind': [
+    { name: 'ESEA Open Division', type: 'ESEA Open', prizePool: 500, rounds: 4, prestige: 1 },
+    { name: 'Community Cup', type: 'ESEA Open', prizePool: 200, rounds: 3, prestige: 1 },
+  ],
+  'FPL-C': [
+    { name: 'ESEA Open Qualifier', type: 'ESEA Open', prizePool: 1000, rounds: 4, prestige: 2 },
+    { name: 'ESEA Main Qualifier', type: 'ESEA Main', prizePool: 2000, rounds: 4, prestige: 2 },
+  ],
+  'FPL': [
+    { name: 'ESEA Main Division', type: 'ESEA Main', prizePool: 3000, rounds: 5, prestige: 3 },
+    { name: 'ESEA Advanced Qualifier', type: 'ESEA Advanced', prizePool: 5000, rounds: 4, prestige: 3 },
+  ],
+  'Academy': [
+    { name: 'ESEA Advanced', type: 'ESEA Advanced', prizePool: 8000, rounds: 5, prestige: 4 },
+    { name: 'Regional Open Qualifier', type: 'ESEA Advanced', prizePool: 5000, rounds: 4, prestige: 4 },
+  ],
+  'Tier 3': [
+    { name: 'ESEA Premier', type: 'ESEA Premier', prizePool: 25000, rounds: 5, prestige: 5 },
+    { name: 'ESL Challenger', type: 'ESL Challenger', prizePool: 50000, rounds: 5, prestige: 5 },
+    { name: 'RMR Regional Qualifier', type: 'PGL Major Qualifier', prizePool: 15000, rounds: 4, prestige: 5 },
+  ],
+  'Tier 2': [
+    { name: 'ESL Pro League', type: 'ESL Pro League', prizePool: 750000, rounds: 5, prestige: 7 },
+    { name: 'IEM Dallas', type: 'IEM', prizePool: 250000, rounds: 5, prestige: 6 },
+    { name: 'BLAST Premier Qualifier', type: 'BLAST Premier', prizePool: 100000, rounds: 4, prestige: 6 },
+    { name: 'PGL Major Qualifier', type: 'PGL Major Qualifier', prizePool: 100000, rounds: 5, prestige: 7 },
+  ],
+  'Tier 1': [
+    { name: 'IEM Katowice', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 8 },
+    { name: 'IEM Cologne', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 8 },
+    { name: 'BLAST World Final', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 8 },
+    { name: 'ESL Pro League', type: 'ESL Pro League', prizePool: 750000, rounds: 5, prestige: 7 },
+    { name: 'PGL Major Copenhagen', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
+    { name: 'PGL Major Austin', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
+  ],
+  'Major Contender': [
+    { name: 'PGL CS2 Major', type: 'Valve Major', prizePool: 1250000, rounds: 6, prestige: 10 },
+    { name: 'BLAST World Final', type: 'BLAST Premier', prizePool: 500000, rounds: 5, prestige: 8 },
+    { name: 'IEM Katowice', type: 'IEM', prizePool: 1000000, rounds: 5, prestige: 9 },
+  ],
+};
+
+function generateTournamentInvite(state: GameState): TournamentInvite | null {
+  const templates = TOURNAMENT_TEMPLATES[state.stage];
+  if (!templates || templates.length === 0) return null;
+
+  // Filter out templates whose tournaments are already in history recently
+  const recentTourneyNames = state.tournamentHistory.slice(-6).map(t => t.name);
+  const validTemplates = templates.filter(t => !recentTourneyNames.includes(t.name));
+  if (validTemplates.length === 0) return templates[Math.floor(Math.random() * templates.length)];
+
+  const template = validTemplates[Math.floor(Math.random() * validTemplates.length)];
+
+  // Higher reputation = better invites
+  const qualified = template.prestige <= Math.ceil(state.reputation / 12) + 1;
+  if (!qualified && Math.random() > 0.3) return null;
+
+  return {
+    id: `invite_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    name: template.name,
+    type: template.type,
+    prizePool: template.prizePool,
+    rounds: template.rounds,
+    expiresWeek: state.weeks + 6,
+    prestige: template.prestige,
+  };
+}
+
 // ─── PROGRESSION CHECK ───
 export function checkProgression(state: GameState): GameState {
   let s = { ...state };
 
-  // Toxic spiral consequence: orgs blacklist you above a threshold
   const toxicPenalty = s.personality.toxicity > 70 && s.personality.professionalism < 30;
 
-  if (s.stage === 'FaceIt Grind' && s.matchesPlayed > 0) {
-    const winRate = s.matchesWon / s.matchesPlayed;
-    if (winRate > 0.55 && s.stats.rating > 1.0 && s.matchesPlayed > 10) {
-      s.faceitLevel = Math.min(10, s.faceitLevel + 1);
-    }
-    if (s.faceitLevel >= 8 && s.stats.rating > 1.1) {
+  // ── FACEIT GRIND → FPL-C ──
+  if (s.stage === 'FaceIt Grind') {
+    if (s.faceitLevel >= 10 && s.faceitElo >= 3200 && s.matchesPlayed >= 15) {
       s.stage = 'FPL-C';
-      s.weekLog = [...s.weekLog, '🎉 Qualified for FPL-C! The grind pays off.'];
+      s.weekLog = [...s.weekLog, `🔥 FPL-C qualified! Your FaceIt performance got you noticed.`];
       s.achievements = [...s.achievements, 'FPL-C Qualified'];
-      s = addNarrativeEntry(s, 'Qualified for FPL-C. The first real step.', 'milestone');
+      s = addNarrativeEntry(s, 'FPL-C qualification. The first real step into the scene.', 'milestone');
+    } else if (s.faceitLevel === 10 && s.matchesPlayed >= 10) {
+      // Level 10 — may get noticed
+      if (Math.random() > 0.96) {
+        s.weekLog = [...s.weekLog, `👀 Your Level 10 performances are attracting attention from scouts.`];
+      }
     }
   }
 
-  if (s.stage === 'FPL-C' && s.stats.rating > 1.2 && s.reputation > 25) {
+  // ── FPL-C → FPL ──
+  if (s.stage === 'FPL-C' && s.stats.rating > 1.2 && s.reputation > 25 && s.matchesPlayed >= 10) {
     s.stage = 'FPL';
-    s.weekLog = [...s.weekLog, '🔥 Promoted to FPL! Pros are watching.'];
+    s.weekLog = [...s.weekLog, `⚡ Invited to FPL! The top amateurs play here.`];
     s.achievements = [...s.achievements, 'FPL Player'];
-    s = addNarrativeEntry(s, 'Made it to FPL. Pros are starting to talk.', 'milestone');
+    s = addNarrativeEntry(s, 'FPL invite. Playing against the pros now.', 'milestone');
   }
 
-  if (s.stage === 'FPL' && s.stats.rating > 1.25 && s.reputation > 35 && !s.team && !toxicPenalty) {
-    s.stage = 'Academy';
-    const teams = ['Vitality Academy', 'NAVI Junior', 'G2 Academy', 'FaZe Rising', 'Cloud9 Academy'];
-    const teamName = teams[Math.floor(Math.random() * teams.length)];
-    s.team = {
-      name: teamName,
-      tier: 'Academy',
-      chemistry: 50,
-      salary: 500,
-      morale: 70,
-      teammates: generateTeammates(s.region, 'Academy'),
-    };
-    s.weekLog = [...s.weekLog, `📋 Signed with ${s.team.name}! Weekly salary: $${Math.floor(s.team.salary / 4)}`];
-    s.achievements = [...s.achievements, 'Academy Player'];
-    s = addNarrativeEntry(s, `Signed with ${s.team.name}. First org contract.`, 'milestone');
-    // Rival may appear now
-    if (!s.rival && Math.random() > 0.5) {
-      s.rival = generateRival(s);
-      s.weekLog = [...s.weekLog, `👀 ${s.rival.name} is making waves at the same level. People are already comparing you two.`];
-      s = addNarrativeEntry(s, `${s.rival.name} appears as a rival. The competition gets personal.`, 'rivalry');
+  // ── GENERATE OFFERS when performing well ──
+  const recentRatings = s.recentRatings ?? [];
+  const avgRecentRating = recentRatings.length > 0
+    ? recentRatings.reduce((a, b) => a + b, 0) / recentRatings.length
+    : s.stats.rating;
+
+  // Only generate offers if not currently under contract or contract expiring soon
+  const offerWindow = !s.activeContract || (s.activeContract && s.activeContract.endWeek - s.weeks <= 10);
+  const pendingCount = (s.pendingOffers ?? []).length;
+
+  if (offerWindow && pendingCount < 2 && !toxicPenalty) {
+    // FPL → Academy offer
+    if (s.stage === 'FPL' && avgRecentRating > 1.2 && s.reputation > 30 && Math.random() > 0.75) {
+      const offer = generateContractOffer(s, 'Academy');
+      s.pendingOffers = [...(s.pendingOffers ?? []), offer];
+      s.weekLog = [...s.weekLog, `📬 Contract offer from ${offer.teamName} (Academy)! $${offer.monthlyUSD.toLocaleString()}/mo — ${offer.durationWeeks}wk`];
+      s = addNarrativeEntry(s, `First org offer: ${offer.teamName} Academy squad.`, 'milestone');
     }
-  } else if (s.stage === 'FPL' && toxicPenalty && s.stats.rating > 1.25 && s.reputation > 35) {
-    s.weekLog = [...s.weekLog, `⚠️ Your toxic reputation is stopping orgs from signing you. Clean it up.`];
-  }
 
-  if (s.stage === 'Academy' && s.stats.rating > 1.3 && s.reputation > 50 && !toxicPenalty) {
-    s.stage = 'Tier 3';
-    const teams = ['ENCE', 'Into The Breach', 'Apeks', 'SAW', 'Monte'];
-    const teamName = teams[Math.floor(Math.random() * teams.length)];
-    s.team = {
-      name: teamName,
-      tier: 'Tier 3',
-      chemistry: 60,
-      salary: 2000,
-      morale: 70,
-      teammates: generateTeammates(s.region, 'Tier 3'),
-    };
-    s.weekLog = [...s.weekLog, `⬆️ Moved up to ${s.team.name}! Tier 3 pro.`];
-    s.achievements = [...s.achievements, 'Tier 3 Pro'];
-    s = addNarrativeEntry(s, `Joined ${s.team.name}. Officially a Tier 3 pro.`, 'milestone');
-  }
+    // Academy → Tier 3 offer
+    if (s.stage === 'Academy' && avgRecentRating > 1.25 && s.reputation > 45 && Math.random() > 0.78) {
+      const offer = generateContractOffer(s, 'Tier 3');
+      s.pendingOffers = [...(s.pendingOffers ?? []), offer];
+      s.weekLog = [...s.weekLog, `📬 Tier 3 offer: ${offer.teamName}! $${offer.monthlyUSD.toLocaleString()}/mo`];
+    }
 
-  if (s.stage === 'Tier 3' && s.stats.rating > 1.35 && s.reputation > 65 && !toxicPenalty) {
-    s.stage = 'Tier 2';
-    const teams = ['MOUZ', 'Complexity', 'Imperial', 'paiN', 'OG'];
-    const teamName = teams[Math.floor(Math.random() * teams.length)];
-    s.team = {
-      name: teamName,
-      tier: 'Tier 2',
-      chemistry: 55,
-      salary: 5000,
-      morale: 65,
-      teammates: generateTeammates(s.region, 'Tier 2'),
-    };
-    s.weekLog = [...s.weekLog, `🚀 Signed with ${s.team.name}! Tier 2 professional.`];
-    s.achievements = [...s.achievements, 'Tier 2 Pro'];
-    s = addNarrativeEntry(s, `${s.team.name} signs you. Tier 2 — the scene is real now.`, 'milestone');
-    // Upgrade rival if they're still at same level
-    if (s.rival) {
-      s.rival = { ...s.rival, stage: 'Tier 2', skill: Math.min(99, s.rival.skill + 8), beefLevel: Math.min(100, s.rival.beefLevel + 10) };
+    // Tier 3 → Tier 2 offer
+    if (s.stage === 'Tier 3' && avgRecentRating > 1.3 && s.reputation > 60 && Math.random() > 0.80) {
+      const offer = generateContractOffer(s, 'Tier 2');
+      s.pendingOffers = [...(s.pendingOffers ?? []), offer];
+      s.weekLog = [...s.weekLog, `📬 Tier 2 offer: ${offer.teamName}! $${offer.monthlyUSD.toLocaleString()}/mo`];
+      s = addNarrativeEntry(s, `Tier 2 scouts are calling. ${offer.teamName} wants you.`, 'milestone');
+    }
+
+    // Tier 2 → Tier 1 offer
+    if (s.stage === 'Tier 2' && avgRecentRating > 1.4 && s.reputation > 75 && Math.random() > 0.82) {
+      const offer = generateContractOffer(s, 'Tier 1');
+      s.pendingOffers = [...(s.pendingOffers ?? []), offer];
+      s.weekLog = [...s.weekLog, `🔥 TIER 1 OFFER: ${offer.teamName}! $${offer.monthlyUSD.toLocaleString()}/mo`];
+      s = addNarrativeEntry(s, `TIER 1 OFFER from ${offer.teamName}. The dream is real.`, 'breakout');
+    }
+
+    // Tier 1 → Major Contender
+    if (s.stage === 'Tier 1' && avgRecentRating > 1.5 && s.reputation > 88 && Math.random() > 0.85) {
+      const offer = generateContractOffer(s, 'Major Contender');
+      s.pendingOffers = [...(s.pendingOffers ?? []), offer];
+      s.weekLog = [...s.weekLog, `👑 ELITE OFFER: ${offer.teamName}! $${offer.monthlyUSD.toLocaleString()}/mo — Top org`];
+      s = addNarrativeEntry(s, `${offer.teamName} — Major Contender org. The summit.`, 'achievement');
+      if (!s.achievements.includes('Major Contender')) {
+        s.achievements = [...s.achievements, 'Major Contender'];
+        s.stage = 'Major Contender';
+      }
     }
   }
 
-  if (s.stage === 'Tier 2' && s.stats.rating > 1.4 && s.reputation > 80 && !toxicPenalty) {
-    s.stage = 'Tier 1';
-    const teams = ['NAVI', 'Vitality', 'FaZe', 'G2', 'Cloud9', 'Heroic', 'Astralis'];
-    const teamName = teams[Math.floor(Math.random() * teams.length)];
-    s.team = {
-      name: teamName,
-      tier: 'Tier 1',
-      chemistry: 50,
-      salary: 15000,
-      morale: 60,
-      teammates: generateTeammates(s.region, 'Tier 1'),
-    };
-    s.weekLog = [...s.weekLog, `🏆 ${s.team.name} signed you! TIER 1 PLAYER!`];
-    s.achievements = [...s.achievements, 'Tier 1 Pro'];
-    s = addNarrativeEntry(s, `${s.team.name} — Tier 1. The absolute top.`, 'milestone');
-    if (s.rival) {
-      s.rival = { ...s.rival, stage: 'Tier 1', skill: Math.min(99, s.rival.skill + 8), beefLevel: Math.min(100, s.rival.beefLevel + 15) };
+  // ── EXPIRE OLD OFFERS ──
+  s.pendingOffers = (s.pendingOffers ?? []).filter(o => o.expiresWeek > s.weeks);
+
+  // ── CONTRACT: SALARY + PERFORMANCE CLAUSE ──
+  if (s.activeContract && s.team) {
+    // Weekly salary (~monthly / 4)
+    const weeklySalary = Math.floor(s.activeContract.monthlyUSD / 4);
+    s.money += weeklySalary;
+    s.earnings += weeklySalary;
+
+    // Contract expiry
+    if (s.weeks >= s.activeContract.endWeek) {
+      s.weekLog = [...s.weekLog, `📋 Contract with ${s.activeContract.teamName} has expired. You're a free agent.`];
+      s.activeContract = null;
+      s = addNarrativeEntry(s, `Contract with ${s.team.name} expired. Free agent hunting.`, 'milestone');
     }
-  }
 
-  if (s.stage === 'Tier 1' && s.stats.rating > 1.5 && s.reputation > 90) {
-    s.stage = 'Major Contender';
-    s.weekLog = [...s.weekLog, `👑 Major contender. The world is watching.`];
-    s.achievements = [...s.achievements, 'Major Contender'];
-    s = addNarrativeEntry(s, 'Major Contender. This is what it was all for.', 'milestone');
-  }
-
-  // Salary payment
-  if (s.team) {
-    const weeklySalary = Math.floor(s.team.salary / 4);
+    // Performance clause check (only if enough recent matches)
+    if (s.activeContract && recentRatings.length >= 4) {
+      const avg = recentRatings.reduce((a, b) => a + b, 0) / recentRatings.length;
+      if (avg < s.activeContract.performanceClause) {
+        const newPoor = (s.activeContract.poorFormStreak ?? 0) + 1;
+        s.activeContract = { ...s.activeContract, poorFormStreak: newPoor };
+        if (newPoor === 3) {
+          s.weekLog = [...s.weekLog, `⚠️ Poor form warning from ${s.team.name}. Avg rating: ${avg.toFixed(2)}. Clause: ${s.activeContract.performanceClause}`];
+        } else if (newPoor >= 5) {
+          // Kicked
+          const teamName = s.team.name;
+          s.weekLog = [...s.weekLog, `❌ RELEASED by ${teamName}. Consistently below contract clause (${avg.toFixed(2)} < ${s.activeContract.performanceClause})`];
+          s.team = null;
+          s.activeContract = null;
+          s.personality = { ...s.personality, reliability: Math.max(0, s.personality.reliability - 10) };
+          s = addNarrativeEntry(s, `Released from ${teamName} for poor performance. Rock bottom.`, 'struggle');
+        }
+      } else if (s.activeContract && (s.activeContract.poorFormStreak ?? 0) > 0) {
+        s.activeContract = { ...s.activeContract, poorFormStreak: 0 };
+      }
+    }
+  } else if (s.team && !s.activeContract) {
+    // On team without formal contract (shouldn't normally happen)
+    const weeklySalary = Math.floor((s.team.salary ?? 2000) / 4);
     s.money += weeklySalary;
     s.earnings += weeklySalary;
   }
 
-  // Age check
-  if (s.age > 33) {
-    s.gameOver = true;
-    s.gameOverReason = 'Father Time catches up to everyone. Your reflexes have declined too much to compete.';
-    s = addNarrativeEntry(s, 'Retired at age ' + s.age + '. An entire career lived.', 'milestone');
+  // ── TOXIC PENALTY ──
+  if (toxicPenalty && Math.random() > 0.8) {
+    s.weekLog = [...s.weekLog, `⚠️ Your toxic reputation is blacklisting you from top orgs.`];
   }
 
-  // Team morale degradation
+  // ── TOURNAMENT INVITE GENERATION ──
+  const existingInvites = s.pendingTournamentInvites ?? [];
+  if (!s.activeTournament && existingInvites.length < 2 && Math.random() > 0.65) {
+    const invite = generateTournamentInvite(s);
+    if (invite) {
+      s.pendingTournamentInvites = [...existingInvites, invite];
+      s.weekLog = [...s.weekLog, `📩 Tournament invite: ${invite.name} (${invite.type}) — $${invite.prizePool.toLocaleString()} prize pool`];
+    }
+  }
+
+  // Expire old invites
+  s.pendingTournamentInvites = (s.pendingTournamentInvites ?? []).filter(i => i.expiresWeek > s.weeks);
+
+  // ── SKILL DECAY ──
+  s = applySkillDecay(s);
+
+  // ── RETIREMENT CHECK ──
+  const overallSkill = getOverallSkill(s);
+  if (s.age >= 35) {
+    s.gameOver = true;
+    s.gameOverReason = `Father Time wins. At ${s.age}, the reflexes are gone. Time to retire.`;
+    s.stage = 'Retired';
+    s = addNarrativeEntry(s, `Retired at ${s.age}. A career to remember.`, 'milestone');
+  } else if (s.age >= 30 && overallSkill < 25) {
+    s.gameOver = true;
+    s.gameOverReason = `Skills have declined too far to compete at any level. Time to hang it up.`;
+    s.stage = 'Retired';
+    s = addNarrativeEntry(s, `Career ended — skill erosion. Not every story ends in glory.`, 'struggle');
+  }
+
+  // ── TEAM MORALE DEGRADATION ──
   if (s.team) {
     s.team = {
       ...s.team,
       morale: Math.max(0, (s.team.morale ?? 70) - 1),
       chemistry: Math.max(20, s.team.chemistry - 0.3),
     };
-    // Low morale warning
-    if ((s.team.morale ?? 70) < 30 && Math.random() > 0.7) {
-      s.weekLog = [...s.weekLog, `⚠️ Team morale is critically low (${Math.round(s.team.morale)}/100). Drama incoming.`];
+    if ((s.team.morale ?? 70) < 25 && Math.random() > 0.7) {
+      s.weekLog = [...s.weekLog, `⚠️ Team morale critically low (${Math.round(s.team.morale)}/100). Drama possible.`];
     }
+  }
+
+  // ── RIVAL UPGRADE ──
+  if (s.rival && Math.random() > 0.95) {
+    s.rival = { ...s.rival, skill: Math.min(99, s.rival.skill + 1) };
   }
 
   return s;
@@ -647,28 +954,30 @@ export function advanceWeek(state: GameState): GameState {
   s.weeks++;
   if (s.weeks % 52 === 0) {
     s.age++;
-    s.weekLog = [...s.weekLog, `🎂 Happy birthday! You're now ${s.age}.`];
-    // Age-related narrative
-    if (s.age === 25) {
-      s = addNarrativeEntry(s, 'Turned 25. The "young prodigy" window is closing. Must prove longevity.', 'milestone');
-    } else if (s.age === 30) {
-      s = addNarrativeEntry(s, 'Turned 30. Most pros this age are retired. You\'re still here.', 'milestone');
-    }
+    s.weekLog = [...s.weekLog, `🎂 Birthday — Age ${s.age}.`];
+    if (s.age === 18) s = addNarrativeEntry(s, 'Turned 18. Adults take you seriously now.', 'milestone');
+    if (s.age === 25) s = addNarrativeEntry(s, 'Turned 25. The "young prodigy" window is closing. Prove longevity.', 'milestone');
+    if (s.age === 27) s = addNarrativeEntry(s, 'Turned 27. Reflexes starting to slow. Lean on IQ.', 'milestone');
+    if (s.age === 30) s = addNarrativeEntry(s, 'Turned 30. Most pros retired. You\'re still here — for now.', 'milestone');
   }
-  // Natural recovery
+
+  // Natural energy recovery
   s.energy = Math.min(100, s.energy + 10);
-  s.reputation = Math.max(0, s.reputation - 0.2);
-  // Health degrades
+  s.reputation = Math.max(0, s.reputation - 0.15);
+
+  // Health degrades naturally
   s.lifestyle = {
     ...s.lifestyle,
-    physicalHealth: Math.max(0, s.lifestyle.physicalHealth - 0.5),
-    sleepQuality: Math.max(0, s.lifestyle.sleepQuality - 0.3),
+    physicalHealth: Math.max(0, s.lifestyle.physicalHealth - 0.4),
+    sleepQuality: Math.max(0, s.lifestyle.sleepQuality - 0.25),
   };
-  // Confidence slowly normalizes towards 50
+
+  // Confidence normalizes
   if (s.streak) {
     const delta = (50 - s.streak.confidence) * 0.05;
     s.streak = { ...s.streak, confidence: s.streak.confidence + delta };
   }
+
   return s;
 }
 
@@ -679,7 +988,7 @@ export function buyEquipment(state: GameState, item: string, category: 'monitor'
   const s = { ...state, equipment: { ...state.equipment } };
   s.money -= price;
   (s.equipment as any)[category] = item;
-  s.weekLog = [...s.weekLog, `🛒 Bought ${item} for $${price}`];
+  s.weekLog = [...s.weekLog, `🛒 Bought ${item} for $${price.toLocaleString()}`];
   return s;
 }
 
@@ -691,20 +1000,33 @@ export function gambleSkins(state: GameState, amount: number): GameState {
   if (roll < 0.05) {
     const winnings = amount * 10;
     s.money += winnings;
-    s.weekLog = [...s.weekLog, `🎰 JACKPOT! Won $${winnings.toLocaleString()} from gambling!`];
+    s.weekLog = [...s.weekLog, `🎰 JACKPOT! Won $${winnings.toLocaleString()}!`];
   } else if (roll < 0.35) {
     const winnings = Math.floor(amount * 1.5);
     s.money += winnings - amount;
-    s.weekLog = [...s.weekLog, `🎰 Small win: +$${winnings - amount} profit`];
+    s.weekLog = [...s.weekLog, `🎰 Small win: +$${(winnings - amount).toLocaleString()}`];
   } else {
     s.money -= amount;
-    s.weekLog = [...s.weekLog, `🎰 Lost $${amount}. The house always wins.`];
+    s.weekLog = [...s.weekLog, `🎰 Lost $${amount.toLocaleString()}. The house always wins.`];
     s.lifestyle = { ...s.lifestyle, tiltLevel: Math.min(100, s.lifestyle.tiltLevel + 10) };
-    // Gambling loss hurts if broke
     if (s.money < 50) {
-      s = addNarrativeEntry(s, 'Gambling debt is becoming a problem.', 'struggle');
+      s = addNarrativeEntry(s, 'Gambling is becoming a real problem.', 'struggle');
     }
   }
+  return s;
+}
+
+// ─── RETIRE VOLUNTARILY ───
+export function retirePlayer(state: GameState): GameState {
+  let s = { ...state };
+  s.stage = 'Retired';
+  s.gameOver = true;
+  s.gameOverReason = `You chose to retire at age ${s.age}. ${
+    s.achievements.includes('Valve Major Champion') ? 'A Major Champion going out on top.' :
+    s.stage === 'Tier 1' || s.stage === 'Major Contender' ? 'A career at the highest level.' :
+    'Every journey has an end.'
+  }`;
+  s = addNarrativeEntry(s, `Retired at ${s.age}. Career complete.`, 'milestone');
   return s;
 }
 
@@ -718,7 +1040,6 @@ export function applyEventChoice(state: GameState, choice: EventChoice): GameSta
   };
   const e = choice.effects;
 
-  // Stats
   if (e.money) s.money = Math.max(0, s.money + e.money);
   if (e.motivation !== undefined) s.lifestyle.motivation = Math.max(0, Math.min(100, s.lifestyle.motivation + e.motivation));
   if (e.tiltLevel !== undefined) s.lifestyle.tiltLevel = Math.max(0, Math.min(100, s.lifestyle.tiltLevel + e.tiltLevel));
@@ -736,22 +1057,11 @@ export function applyEventChoice(state: GameState, choice: EventChoice): GameSta
     s.team = { ...s.team, chemistry: Math.max(0, Math.min(100, s.team.chemistry + e.teamChemistry)) };
   }
 
-  // Personality effects
-  if (e.professionalism !== undefined) {
-    s.personality.professionalism = Math.max(0, Math.min(100, s.personality.professionalism + e.professionalism));
-  }
-  if (e.toxicity !== undefined) {
-    s.personality.toxicity = Math.max(0, Math.min(100, s.personality.toxicity + e.toxicity));
-  }
-  if (e.clutchReputation !== undefined) {
-    s.personality.clutchReputation = Math.max(0, Math.min(100, s.personality.clutchReputation + e.clutchReputation));
-  }
-  if (e.reliability !== undefined) {
-    s.personality.reliability = Math.max(0, Math.min(100, s.personality.reliability + e.reliability));
-  }
-  if (e.dedication !== undefined) {
-    s.personality.dedication = Math.max(0, Math.min(100, s.personality.dedication + e.dedication));
-  }
+  if (e.professionalism !== undefined) s.personality.professionalism = Math.max(0, Math.min(100, s.personality.professionalism + e.professionalism));
+  if (e.toxicity !== undefined) s.personality.toxicity = Math.max(0, Math.min(100, s.personality.toxicity + e.toxicity));
+  if (e.clutchReputation !== undefined) s.personality.clutchReputation = Math.max(0, Math.min(100, s.personality.clutchReputation + e.clutchReputation));
+  if (e.reliability !== undefined) s.personality.reliability = Math.max(0, Math.min(100, s.personality.reliability + e.reliability));
+  if (e.dedication !== undefined) s.personality.dedication = Math.max(0, Math.min(100, s.personality.dedication + e.dedication));
   if (e.confidence !== undefined && s.streak) {
     s.streak = { ...s.streak, confidence: Math.max(0, Math.min(100, s.streak.confidence + e.confidence)) };
   }
@@ -767,9 +1077,9 @@ export function rollForEvent(state: GameState): GameEvent | null {
 
 // ─── TRACK EVENT HISTORY ───
 export function trackEvent(state: GameState, eventId: string): GameState {
-  const history = [...(state.eventHistory ?? []), eventId].slice(-10);
+  const history = [...(state.eventHistory ?? []), { id: eventId, week: state.weeks }].slice(-20);
   return { ...state, eventHistory: history };
 }
 
-// ─── ENSURE BACKWARD COMPAT ───
+// ─── BACKWARD COMPAT ───
 export { ensureNewStateFields };
