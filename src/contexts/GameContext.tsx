@@ -5,7 +5,9 @@ import {
   applyStreaming, checkProgression, advanceWeek, buyEquipment,
   gambleSkins, rollForEvent, applyEventChoice,
   applyTeamPractice, enterTournament, playTournamentMatch,
+  trackEvent, ensureNewStateFields,
 } from '@/lib/gameEngine';
+import { updateArc } from '@/lib/storyEngine';
 
 type GameAction =
   | { type: 'NEW_GAME'; name: string; age: number; role: any; region: any }
@@ -18,8 +20,8 @@ type GameAction =
   | { type: 'PLAY_TOURNAMENT_MATCH' }
   | { type: 'BUY_EQUIPMENT'; item: string; category: 'monitor' | 'mouse' | 'keyboard' | 'pc' }
   | { type: 'GAMBLE'; amount: number }
-  | { type: 'RESOLVE_EVENT'; choice: EventChoice }
-  | { type: 'DISMISS_EVENT' }
+  | { type: 'RESOLVE_EVENT'; choice: EventChoice; eventId?: string }
+  | { type: 'DISMISS_EVENT'; eventId?: string }
   | { type: 'LOAD_GAME'; state: GameState };
 
 // Actions that consume a week
@@ -29,7 +31,10 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
   if (action.type === 'NEW_GAME') {
     return createInitialState(action.name, action.age, action.role, action.region);
   }
-  if (action.type === 'LOAD_GAME') return action.state;
+  if (action.type === 'LOAD_GAME') {
+    // Ensure old saves get new fields
+    return ensureNewStateFields(action.state);
+  }
   if (!state) return null;
 
   let newState = { ...state, weekLog: [] as string[] };
@@ -41,22 +46,26 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
         break;
       }
       newState = applyTraining(newState, action.focus);
-      newState.weekLog = [...newState.weekLog, `Trained ${action.focus} this week. Energy: ${Math.round(newState.energy)}/100`];
+      const attrLabel = action.focus === 'nades' ? 'nade usage' : action.focus;
+      newState.weekLog = [
+        ...newState.weekLog,
+        `Trained ${attrLabel} — Energy: ${Math.round(newState.energy)}/100`,
+      ];
       break;
     }
     case 'PLAY_MATCH': {
       const { state: ms, result } = simulateMatch(newState);
       newState = ms;
-      newState.weekLog = [...newState.weekLog,
-        `${result.won ? '✅ WIN' : '❌ LOSS'} — ${result.kills}/${result.deaths} | ${result.adr} ADR | ${result.rating} Rating${result.mvp ? ' ⭐ MVP' : ''}`
+      const clutchNote = result.clutchMoment ? ' ⚡ Clutch moment!' : '';
+      newState.weekLog = [
+        ...newState.weekLog,
+        `${result.won ? '✅ WIN' : '❌ LOSS'} — ${result.kills}/${result.deaths} | ${result.adr} ADR | ${result.rating} Rating${result.mvp ? ' ⭐ MVP' : ''}${clutchNote}`,
       ];
-      if (result.rating > 1.2) newState.reputation = Math.min(100, newState.reputation + 1);
-      if (result.mvp) newState.reputation = Math.min(100, newState.reputation + 2);
       break;
     }
     case 'REST':
       newState = applyRest(newState);
-      newState.weekLog = [...newState.weekLog, `Rested this week. Energy restored to ${Math.round(newState.energy)}/100`];
+      newState.weekLog = [...newState.weekLog, `😴 Rested — Energy restored to ${Math.round(newState.energy)}/100`];
       break;
     case 'STREAM':
       newState = applyStreaming(newState);
@@ -103,12 +112,18 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
     case 'GAMBLE':
       newState = gambleSkins(newState, action.amount);
       break;
-    case 'RESOLVE_EVENT':
+    case 'RESOLVE_EVENT': {
+      const eventId = action.eventId ?? newState.currentEvent?.id;
       newState = applyEventChoice(newState, action.choice);
+      if (eventId) newState = trackEvent(newState, eventId);
       break;
-    case 'DISMISS_EVENT':
+    }
+    case 'DISMISS_EVENT': {
+      const eventId = action.eventId ?? newState.currentEvent?.id;
       newState = { ...newState, currentEvent: null };
+      if (eventId) newState = trackEvent(newState, eventId);
       break;
+    }
     default:
       return state;
   }
@@ -117,8 +132,10 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
   if (WEEK_ACTIONS.has(action.type)) {
     newState = advanceWeek(newState);
     newState = checkProgression(newState);
-    // Roll for event (not during tournament matches to reduce noise)
-    if (action.type !== 'PLAY_TOURNAMENT_MATCH') {
+    // Update story arc based on new state
+    newState = updateArc(newState);
+    // Roll for event (reduced frequency during tournament to cut noise)
+    if (action.type !== 'PLAY_TOURNAMENT_MATCH' || Math.random() > 0.6) {
       const event = rollForEvent(newState);
       if (event) newState.currentEvent = event;
     }

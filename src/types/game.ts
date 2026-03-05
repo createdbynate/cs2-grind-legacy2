@@ -7,6 +7,63 @@ export type WeekAction = 'train' | 'match' | 'rest' | 'stream' | 'shop' | 'team_
 
 export type TournamentType = 'Open Qualifier' | 'Regional' | 'Pro League' | 'Major Qualifier' | 'Major';
 
+// ─── STORY ARC SYSTEM ───
+export type ArcType =
+  | 'none'
+  | 'burnout'           // grinding too hard, heading toward collapse
+  | 'comeback'          // recovering from a slump or low point
+  | 'prodigy'           // rapid early career rise
+  | 'toxic_spiral'      // toxicity causing real consequences
+  | 'clutch_king'       // known for performing under pressure
+  | 'rival_war'         // intense ongoing rivalry
+  | 'injury_recovery'   // recovering from physical issue
+  | 'breakout';         // sudden breakthrough moment
+
+export interface CareerArc {
+  type: ArcType;
+  startWeek: number;
+  intensity: number;   // 0-100
+  resolved: boolean;
+  label: string;
+}
+
+// ─── PERSONALITY SYSTEM (hidden traits) ───
+export interface PersonalityTraits {
+  professionalism: number;   // 0-100: affects org trust & signing chances
+  toxicity: number;          // 0-100: causes drama, hurts team relations
+  clutchReputation: number;  // 0-100: known for clutching (bonus in big moments)
+  reliability: number;       // 0-100: showing up consistently
+  dedication: number;        // 0-100: training effectiveness multiplier
+}
+
+// ─── STREAK / CONFIDENCE ───
+export interface StreakData {
+  current: number;       // positive = win streak, negative = loss streak
+  longestWin: number;
+  longestLoss: number;
+  confidence: number;    // 0-100, boosts/hurts performance
+}
+
+// ─── RIVAL SYSTEM ───
+export interface Rival {
+  name: string;
+  team: string;
+  skill: number;       // 0-99
+  stage: CareerStage;
+  wins: number;        // player's wins vs rival
+  losses: number;
+  beefLevel: number;   // 0-100, social drama intensity
+}
+
+// ─── CAREER NARRATIVE LOG ───
+export type NarrativeType = 'achievement' | 'drama' | 'milestone' | 'breakout' | 'struggle' | 'rivalry';
+export interface CareerNarrativeEntry {
+  week: number;
+  text: string;
+  type: NarrativeType;
+}
+
+// ─── CORE STATS ───
 export interface PlayerStats {
   adr: number;
   kd: number;
@@ -46,28 +103,35 @@ export type MouseTier = 'Budget' | 'Mid-Range' | 'Pro';
 export type KeyboardTier = 'Membrane' | 'Mechanical' | 'Custom';
 export type PCTier = 'Potato' | 'Mid' | 'High-End' | 'Beast';
 
+// ─── TEAM ───
+export type TeammatePersonality = 'aggressive' | 'supportive' | 'passive' | 'toxic' | 'leader';
+
 export interface Teammate {
   name: string;
   role: Role;
-  skill: number; // 0-99
-  chemistry: number; // 0-100 chemistry with player
+  skill: number;        // 0-99
+  chemistry: number;    // 0-100 chemistry with player
+  personality: TeammatePersonality;
+  mood: number;         // 0-100
 }
 
 export interface Team {
   name: string;
   tier: CareerStage;
-  chemistry: number; // overall team chemistry
+  chemistry: number;
   salary: number;
   teammates: Teammate[];
+  morale: number;       // 0-100 overall team morale
 }
 
+// ─── TOURNAMENT ───
 export interface Tournament {
   id: string;
   name: string;
   type: TournamentType;
   prizePool: number;
-  rounds: number; // total rounds needed to win
-  currentRound: number; // 0-indexed
+  rounds: number;
+  currentRound: number;
   wins: number;
   eliminated: boolean;
   won: boolean;
@@ -81,17 +145,20 @@ export interface TournamentResult {
   prize: number;
 }
 
+// ─── EVENTS ───
 export interface GameEvent {
   id: string;
   title: string;
   description: string;
   choices: EventChoice[];
   minStage?: CareerStage;
+  category?: string;
 }
 
 export interface EventChoice {
   text: string;
   effects: Partial<EventEffects>;
+  outcomeText?: string;   // shown after choice
 }
 
 export interface EventEffects {
@@ -107,8 +174,18 @@ export interface EventEffects {
   sleepQuality: number;
   teamChemistry: number;
   energy: number;
+  // Personality effects
+  professionalism: number;
+  toxicity: number;
+  clutchReputation: number;
+  reliability: number;
+  dedication: number;
+  confidence: number;
+  nadeUsage: number;
+  positioning: number;
 }
 
+// ─── MATCH ───
 export interface MatchResult {
   won: boolean;
   kills: number;
@@ -118,8 +195,11 @@ export interface MatchResult {
   mvp: boolean;
   type: 'pug' | 'scrim' | 'official' | 'qualifier' | 'major';
   tournamentRound?: string;
+  clutchMoment?: boolean;   // did they have a notable clutch?
+  streakEffect?: string;    // 'hot' | 'cold' — narrative label
 }
 
+// ─── GAME STATE ───
 export interface GameState {
   playerName: string;
   age: number;
@@ -138,7 +218,7 @@ export interface GameState {
   matchesWon: number;
   faceitLevel: number;
   earnings: number;
-  energy: number; // 0-100
+  energy: number;
   activeTournament: Tournament | null;
   tournamentHistory: TournamentResult[];
   currentEvent: GameEvent | null;
@@ -147,8 +227,17 @@ export interface GameState {
   gameOver: boolean;
   gameOverReason?: string;
   achievements: string[];
+
+  // ─── NEW SYSTEMS ───
+  personality: PersonalityTraits;
+  streak: StreakData;
+  arc: CareerArc;
+  rival: Rival | null;
+  careerNarrative: CareerNarrativeEntry[];
+  eventHistory: string[];          // last 10 event IDs for chain detection
 }
 
+// ─── CONSTANTS ───
 export const EQUIPMENT_PRICES: Record<string, number> = {
   '144Hz': 250,
   '240Hz': 500,
@@ -175,7 +264,6 @@ export const EQUIPMENT_BONUSES: Record<string, Partial<Attributes>> = {
   'Beast': { consistency: 7, aim: 3 },
 };
 
-// Energy costs per action
 export const ENERGY_COSTS = {
   train: 30,
   match: 15,
@@ -184,7 +272,6 @@ export const ENERGY_COSTS = {
   team_practice: 25,
 };
 
-// Available tournaments (template — active ones are cloned onto state)
 export const AVAILABLE_TOURNAMENTS: Omit<Tournament, 'currentRound' | 'wins' | 'eliminated' | 'won'>[] = [
   {
     id: 'open_qualifier',
@@ -226,4 +313,9 @@ export const AVAILABLE_TOURNAMENTS: Omit<Tournament, 'currentRound' | 'wins' | '
     rounds: 6,
     minStage: 'Tier 1',
   },
+];
+
+export const STAGE_ORDER: CareerStage[] = [
+  'FaceIt Grind', 'FPL-C', 'FPL', 'Academy',
+  'Tier 3', 'Tier 2', 'Tier 1', 'Major Contender',
 ];
