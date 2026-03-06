@@ -680,7 +680,7 @@ export function acceptTournamentInvite(state: GameState, inviteId: string): Game
     won: false,
   };
 
-  const s = {
+  let s = {
     ...state,
     activeTournament: tournament,
     pendingTournamentInvites: (state.pendingTournamentInvites ?? []).filter(i => i.id !== inviteId),
