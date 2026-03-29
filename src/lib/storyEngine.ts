@@ -242,6 +242,10 @@ export function ensureNewStateFields(state: GameState): GameState {
   if (!s.pendingTournamentInvites) s.pendingTournamentInvites = [];
   if (!s.recentRatings) s.recentRatings = [];
   if (s.faceitElo === undefined) s.faceitElo = 1200;
+  if (s.matchMomentBoost === undefined) s.matchMomentBoost = 0;
+  if (s.pendingMatch === undefined) s.pendingMatch = false;
+  if (!s.careerChallenges) s.careerChallenges = [];
+  if (s.legacyScore === undefined) s.legacyScore = 0;
 
   // Ensure team has morale
   if (s.team && s.team.morale === undefined) {

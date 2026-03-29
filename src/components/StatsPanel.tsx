@@ -298,6 +298,31 @@ export default function StatsPanel({ state }: Props) {
             : `⚡ Age ${state.age} — slight reflex decline starting. Train harder.`}
         </div>
       )}
+
+      {/* ── CAREER CHALLENGES ── */}
+      {state.careerChallenges?.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-4">
+          <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Career Challenges</h3>
+          <div className="space-y-2">
+            {state.careerChallenges.map(c => (
+              <div key={c.id} className={`rounded-md border p-2.5 ${c.completed ? 'border-cs2-gold/40 bg-cs2-gold/5' : 'border-border'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-mono font-semibold ${c.completed ? 'text-cs2-gold' : 'text-foreground'}`}>
+                    {c.completed ? '✅' : '○'} {c.title}
+                  </span>
+                  {c.completed && <span className="text-[10px] font-mono text-cs2-gold">+{c.legacyBonus} Legacy</span>}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{c.description}</div>
+              </div>
+            ))}
+          </div>
+          {(state.legacyScore ?? 0) > 0 && (
+            <div className="mt-3 pt-2 border-t border-border text-[10px] font-mono text-muted-foreground">
+              Legacy Score: <span className="text-cs2-gold font-bold">{state.legacyScore}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

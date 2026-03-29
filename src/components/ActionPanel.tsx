@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crosshair, MapPin, Bomb, Brain, MessageSquare, Gamepad2, Coffee, Radio,
   ShoppingCart, Dice1, Trophy, Users, Zap, FileSignature, X, LogOut,
-  Skull, CalendarDays, Star,
+  Skull, CalendarDays, Star, HeartPulse, BarChart2, Tv2,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -316,6 +316,60 @@ export default function ActionPanel() {
                   <span className="text-xs font-mono text-muted-foreground">-25⚡</span>
                 </button>
               )}
+
+              {/* Life Actions */}
+              <div className="pt-1 border-t border-border space-y-1.5">
+                <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Life</h3>
+                <button
+                  onClick={() => dispatch({ type: 'MENTAL_COACHING' })}
+                  disabled={state.money < 500}
+                  className={`w-full p-3 rounded-md border transition flex items-center justify-between ${
+                    state.money >= 500
+                      ? 'bg-secondary border-border hover:border-cs2-purple'
+                      : 'bg-secondary/40 border-border opacity-40 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <HeartPulse className="w-4 h-4 text-cs2-purple" />
+                    <div className="text-left">
+                      <div className="font-display text-xs font-semibold text-foreground">Mental Coach</div>
+                      <div className="text-[10px] text-muted-foreground">Clear tilt · +Mental Strength</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono text-destructive">-$500</span>
+                </button>
+                <button
+                  onClick={() => dispatch({ type: 'HIRE_ANALYST' })}
+                  disabled={state.money < 300}
+                  className={`w-full p-3 rounded-md border transition flex items-center justify-between ${
+                    state.money >= 300
+                      ? 'bg-secondary border-border hover:border-cs2-blue'
+                      : 'bg-secondary/40 border-border opacity-40 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart2 className="w-4 h-4 text-cs2-blue" />
+                    <div className="text-left">
+                      <div className="font-display text-xs font-semibold text-foreground">Hire Analyst</div>
+                      <div className="text-[10px] text-muted-foreground">VOD review · +GameIQ +Positioning</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono text-destructive">-$300</span>
+                </button>
+                <button
+                  onClick={() => dispatch({ type: 'POST_CONTENT' })}
+                  className="w-full p-3 rounded-md border border-border bg-secondary hover:border-cs2-green transition flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <Tv2 className="w-4 h-4 text-cs2-green" />
+                    <div className="text-left">
+                      <div className="font-display text-xs font-semibold text-foreground">Post Content</div>
+                      <div className="text-[10px] text-muted-foreground">Clips / socials · Build brand · Chance to go viral</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground">Free</span>
+                </button>
+              </div>
 
               {/* Leave team / Retire */}
               <div className="pt-1 border-t border-border space-y-1.5">

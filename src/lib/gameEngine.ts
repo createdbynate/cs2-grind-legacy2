@@ -5,7 +5,7 @@ import {
   Tournament, TournamentType, TournamentResult, Teammate,
   ENERGY_COSTS, TeammatePersonality,
   ContractOffer, ActiveContract, TournamentInvite,
-  FACEIT_LEVEL_ELO,
+  FACEIT_LEVEL_ELO, CareerChallenge, LifetimeStats,
 } from '@/types/game';
 import {
   rollForStoryEvent, updateStreak, updateArc,
@@ -62,6 +62,108 @@ function generateTeammates(region: Region, tier: CareerStage): Teammate[] {
     });
   }
   return teammates;
+}
+
+// ─── CHALLENGE POOL ───
+const CHALLENGE_POOL: Omit<CareerChallenge, 'completed'>[] = [
+  { id: 'win_streak_7', title: 'Hot Streak', description: 'Win 7 matches in a row at any point.', type: 'win_streak', target: 7, bonusDesc: 'Confidence legend', legacyBonus: 60 },
+  { id: 'matches_100', title: 'The Grinder', description: 'Play 100 total matches.', type: 'matches_played', target: 100, bonusDesc: 'Iron will', legacyBonus: 40 },
+  { id: 'earn_250k', title: 'Money Maker', description: 'Earn $250,000 over your career.', type: 'earn_money', target: 250000, bonusDesc: 'Financially set', legacyBonus: 50 },
+  { id: 'win_3_tournaments', title: 'Tournament King', description: 'Win 3 tournaments.', type: 'win_tournament', target: 3, bonusDesc: 'Trophy cabinet', legacyBonus: 75 },
+  { id: 'major_champ', title: 'Major Champion', description: 'Win a Valve Major.', type: 'major_champion', target: 1, bonusDesc: 'All-time great', legacyBonus: 200 },
+  { id: 'level10', title: 'FACEIT Legend', description: 'Reach FACEIT Level 10.', type: 'level10_faceit', target: 10, bonusDesc: 'Scene noticed you', legacyBonus: 35 },
+  { id: 'clutch_15pct', title: 'Clutch God', description: 'Achieve 15%+ clutch rate.', type: 'clutch_percent', target: 15, bonusDesc: 'Nerves of steel', legacyBonus: 55 },
+  { id: 'no_big_loss', title: 'Unbreakable', description: 'Never go on a losing streak of 5 or more.', type: 'no_big_loss_streak', target: 5, bonusDesc: 'Mental fortress', legacyBonus: 45 },
+  { id: 'professionalism_80', title: 'The Professional', description: 'Reach 80+ Professionalism.', type: 'professionalism', target: 80, bonusDesc: 'Respected in the scene', legacyBonus: 40 },
+  { id: 'earn_50k', title: 'First Paycheck', description: 'Earn $50,000 total.', type: 'earn_money', target: 50000, bonusDesc: 'Broke through', legacyBonus: 25 },
+];
+
+function generateChallenges(): CareerChallenge[] {
+  const pool = [...CHALLENGE_POOL];
+  const selected: CareerChallenge[] = [];
+  for (let i = 0; i < 3 && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    selected.push({ ...pool.splice(idx, 1)[0], completed: false });
+  }
+  return selected;
+}
+
+// ─── LEGACY SCORE ───
+export function calculateLegacyScore(state: GameState): number {
+  const stageScores: Record<string, number> = {
+    'FaceIt Grind': 10, 'FPL-C': 20, 'FPL': 30, 'Academy': 50,
+    'Tier 3': 75, 'Tier 2': 100, 'Tier 1': 150, 'Major Contender': 200, 'Retired': 50,
+  };
+  let score = stageScores[state.stage] ?? 10;
+  const tournyWins = state.tournamentHistory.filter(t => t.placement.includes('1st')).length;
+  score += tournyWins * 25;
+  score += Math.floor(state.matchesPlayed / 20) * 5;
+  score += Math.floor(state.earnings / 100000) * 10;
+  score += (state.streak?.longestWin ?? 0) * 3;
+  const challenges = state.careerChallenges ?? [];
+  score += challenges.filter(c => c.completed).reduce((sum, c) => sum + c.legacyBonus, 0);
+  if (state.achievements.includes('Valve Major Champion')) score += 300;
+  return score;
+}
+
+// ─── LIFETIME STATS ───
+export function loadLifetimeStats(): LifetimeStats {
+  try {
+    const raw = localStorage.getItem('cs2-lifetime');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { totalCareers: 0, bestGrade: 'D', majorsWon: 0, totalEarnings: 0, bestWinStreak: 0, totalMatchesPlayed: 0, totalTournamentsWon: 0, totalLegacyScore: 0 };
+}
+
+export function saveLifetimeStats(state: GameState, grade: string): void {
+  try {
+    const existing = loadLifetimeStats();
+    const tournyWins = state.tournamentHistory.filter(t => t.placement.includes('1st')).length;
+    const gradeOrder = ['D', 'C', 'C+', 'B', 'A', 'A+', 'S', 'S+'];
+    const bestGrade = gradeOrder.indexOf(grade) > gradeOrder.indexOf(existing.bestGrade) ? grade : existing.bestGrade;
+    const updated: LifetimeStats = {
+      totalCareers: existing.totalCareers + 1,
+      bestGrade,
+      majorsWon: existing.majorsWon + (state.achievements.includes('Valve Major Champion') ? 1 : 0),
+      totalEarnings: existing.totalEarnings + state.earnings,
+      bestWinStreak: Math.max(existing.bestWinStreak, state.streak?.longestWin ?? 0),
+      totalMatchesPlayed: existing.totalMatchesPlayed + state.matchesPlayed,
+      totalTournamentsWon: existing.totalTournamentsWon + tournyWins,
+      totalLegacyScore: existing.totalLegacyScore + calculateLegacyScore(state),
+    };
+    localStorage.setItem('cs2-lifetime', JSON.stringify(updated));
+  } catch {}
+}
+
+// ─── CHALLENGE PROGRESS CHECK ───
+export function updateChallenges(state: GameState): GameState {
+  if (!state.careerChallenges?.length) return state;
+  const challenges = state.careerChallenges.map(c => {
+    if (c.completed) return c;
+    let completed = false;
+    const tournyWins = state.tournamentHistory.filter(t => t.placement.includes('1st')).length;
+    switch (c.type) {
+      case 'win_streak': completed = (state.streak?.longestWin ?? 0) >= c.target; break;
+      case 'matches_played': completed = state.matchesPlayed >= c.target; break;
+      case 'earn_money': completed = state.earnings >= c.target; break;
+      case 'win_tournament': completed = tournyWins >= c.target; break;
+      case 'major_champion': completed = state.achievements.includes('Valve Major Champion'); break;
+      case 'level10_faceit': completed = state.faceitLevel >= c.target; break;
+      case 'clutch_percent': completed = state.stats.clutchPercent >= c.target; break;
+      case 'no_big_loss_streak': completed = (state.streak?.longestLoss ?? 0) < c.target; break;
+      case 'professionalism': completed = state.personality.professionalism >= c.target; break;
+    }
+    if (completed && !c.completed) return { ...c, completed: true };
+    return c;
+  });
+
+  const newlyCompleted = challenges.filter((c, i) => c.completed && !state.careerChallenges[i].completed);
+  let s = { ...state, careerChallenges: challenges };
+  for (const c of newlyCompleted) {
+    s.weekLog = [...(s.weekLog ?? []), `🎯 Challenge Complete: "${c.title}" — ${c.bonusDesc}! (+${c.legacyBonus} Legacy)`];
+    s.legacyScore = (s.legacyScore ?? 0) + c.legacyBonus;
+  }
+  return s;
 }
 
 // ─── INITIALIZATION ───
@@ -125,6 +227,10 @@ export function createInitialState(name: string, age: number, role: Role, region
     rival: null,
     careerNarrative: [],
     eventHistory: [],
+    matchMomentBoost: 0,
+    pendingMatch: false,
+    careerChallenges: generateChallenges(),
+    legacyScore: 0,
   };
 }
 
@@ -265,11 +371,12 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
   const performance = calculatePerformance(state);
   const attr = state.attributes;
 
+  const momentBoost = state.matchMomentBoost ?? 0;
   const kills = Math.floor(12 + performance * 18 + Math.random() * 6);
   const deaths = Math.floor(8 + (1 - performance) * 14 + Math.random() * 5);
   const adr = Math.floor(50 + performance * 50 + Math.random() * 15);
   const rating = Math.round((0.6 + performance * 0.9 + Math.random() * 0.2) * 100) / 100;
-  const won = performance + Math.random() * 0.3 > 0.5;
+  const won = performance + momentBoost + Math.random() * 0.3 > 0.5;
   const mvp = performance > 0.65 && Math.random() > 0.5;
   const clutchMoment = attr.mentalStrength > 60 && Math.random() < 0.12 + (state.personality.clutchReputation / 500);
 
@@ -287,7 +394,7 @@ export function simulateMatch(state: GameState): { state: GameState; result: Mat
     streakEffect: streakMsg ? (state.streak.current > 0 ? 'hot' : 'cold') : undefined,
   };
 
-  let newState = { ...state, stats: { ...state.stats }, lifestyle: { ...state.lifestyle } };
+  let newState = { ...state, stats: { ...state.stats }, lifestyle: { ...state.lifestyle }, matchMomentBoost: 0, pendingMatch: false };
 
   // Rolling averages
   const m = newState.matchesPlayed;
@@ -957,6 +1064,9 @@ export function checkProgression(state: GameState): GameState {
     s.rival = { ...s.rival, skill: Math.min(99, s.rival.skill + 1) };
   }
 
+  // ── CHALLENGE PROGRESS ──
+  s = updateChallenges(s);
+
   return s;
 }
 
@@ -1028,6 +1138,60 @@ export function gambleSkins(state: GameState, amount: number): GameState {
   return s;
 }
 
+// ─── MENTAL COACHING ───
+export function applyMentalCoaching(state: GameState): GameState {
+  const cost = 500;
+  if (state.money < cost) return { ...state, weekLog: [...state.weekLog, '💸 Not enough money for a session. ($500 required)'] };
+  let s = { ...state, lifestyle: { ...state.lifestyle }, attributes: { ...state.attributes } };
+  s.money -= cost;
+  s.lifestyle.tiltLevel = Math.max(0, s.lifestyle.tiltLevel - 28);
+  s.lifestyle.motivation = Math.min(100, s.lifestyle.motivation + 12);
+  s.attributes.mentalStrength = Math.min(99, s.attributes.mentalStrength + 3);
+  s.personality = { ...s.personality, professionalism: Math.min(100, s.personality.professionalism + 3) };
+  s.weekLog = [...s.weekLog, `🧠 Mental coaching session — Tilt cleared, mindset reset. (-$${cost})`];
+  return s;
+}
+
+// ─── HIRE ANALYST ───
+export function hireAnalyst(state: GameState): GameState {
+  const cost = 300;
+  if (state.money < cost) return { ...state, weekLog: [...state.weekLog, '💸 Can\'t afford an analyst. ($300 required)'] };
+  let s = { ...state, attributes: { ...state.attributes } };
+  s.money -= cost;
+  s.attributes.gameIQ = Math.min(99, s.attributes.gameIQ + 5);
+  s.attributes.positioning = Math.min(99, s.attributes.positioning + 3);
+  s.weekLog = [...s.weekLog, `📊 Analyst session — VOD breakdowns, opponent tendencies studied. (-$${cost}) +5 GameIQ +3 Positioning`];
+  return s;
+}
+
+// ─── POST CONTENT ───
+export function postContent(state: GameState): GameState {
+  let s = { ...state };
+  const roll = Math.random();
+  if (roll < 0.12) {
+    // Viral moment
+    const bonus = Math.floor(300 + Math.random() * 700);
+    s.money += bonus;
+    s.earnings += bonus;
+    s.reputation = Math.min(100, s.reputation + 8);
+    s.weekLog = [...s.weekLog, `📱 POST WENT VIRAL! Clip blew up — +$${bonus} donations, +8 Rep`];
+    s = addNarrativeEntry(s, 'Viral clip. The internet knows your name now.', 'breakout');
+  } else if (roll < 0.25) {
+    // Controversy
+    s.personality = { ...s.personality, toxicity: Math.min(100, s.personality.toxicity + 6), professionalism: Math.max(0, s.personality.professionalism - 5) };
+    s.weekLog = [...s.weekLog, `📱 Post got ratio'd. Drama online. Toxic rep up.`];
+  } else {
+    // Normal
+    const repGain = 1 + Math.floor(Math.random() * 3);
+    const income = Math.floor(20 + Math.random() * 60);
+    s.reputation = Math.min(100, s.reputation + repGain);
+    s.money += income;
+    s.earnings += income;
+    s.weekLog = [...s.weekLog, `📱 Posted content — steady growth. +${repGain} Rep +$${income}`];
+  }
+  return s;
+}
+
 // ─── RETIRE VOLUNTARILY ───
 export function retirePlayer(state: GameState): GameState {
   let s = { ...state };
@@ -1076,6 +1240,9 @@ export function applyEventChoice(state: GameState, choice: EventChoice): GameSta
   if (e.dedication !== undefined) s.personality.dedication = Math.max(0, Math.min(100, s.personality.dedication + e.dedication));
   if (e.confidence !== undefined && s.streak) {
     s.streak = { ...s.streak, confidence: Math.max(0, Math.min(100, s.streak.confidence + e.confidence)) };
+  }
+  if (e.matchMomentBoost !== undefined) {
+    s.matchMomentBoost = (s.matchMomentBoost ?? 0) + e.matchMomentBoost;
   }
 
   s.currentEvent = null;

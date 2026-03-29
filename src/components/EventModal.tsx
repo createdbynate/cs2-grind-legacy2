@@ -58,6 +58,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   personal: '🏠',
   rivalry: '⚔️',
   financial: '💰',
+  match_moment: '🎯',
 };
 
 export default function EventModal() {
@@ -85,8 +86,8 @@ export default function EventModal() {
           {/* Header */}
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">{icon}</span>
-            <span className="text-xs font-mono text-primary uppercase tracking-wider">
-              {category?.replace('_', ' ') ?? 'Event'}
+            <span className={`text-xs font-mono uppercase tracking-wider ${category === 'match_moment' ? 'text-cs2-orange' : 'text-primary'}`}>
+              {category === 'match_moment' ? '🎯 MATCH MOMENT' : category?.replace('_', ' ') ?? 'Event'}
             </span>
             {arcLabel && (
               <span className="ml-auto text-xs font-mono text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/30">
@@ -94,6 +95,11 @@ export default function EventModal() {
               </span>
             )}
           </div>
+          {category === 'match_moment' && (
+            <div className="text-xs font-mono mb-3 px-3 py-2 rounded border text-cs2-orange bg-cs2-orange/5 border-cs2-orange/20">
+              ⚡ Your decision affects the match outcome. Choose wisely.
+            </div>
+          )}
 
           <h2 className="text-xl font-display font-bold text-foreground mb-2">{event.title}</h2>
           <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{event.description}</p>

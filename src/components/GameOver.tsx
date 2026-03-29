@@ -1,6 +1,8 @@
 import { useGame } from '@/contexts/GameContext';
 import { motion } from 'framer-motion';
 import { NarrativeType } from '@/types/game';
+import { calculateLegacyScore, loadLifetimeStats, saveLifetimeStats } from '@/lib/gameEngine';
+import { useEffect, useRef } from 'react';
 
 const NARRATIVE_ICONS: Record<NarrativeType, string> = {
   achievement: '🏆',
@@ -13,9 +15,10 @@ const NARRATIVE_ICONS: Record<NarrativeType, string> = {
 
 export default function GameOver() {
   const { state, dispatch } = useGame();
+  const savedRef = useRef(false);
   if (!state?.gameOver) return null;
 
-  const isMajor = state.achievements.includes('Major Champion');
+  const isMajor = state.achievements.includes('Valve Major Champion') || state.achievements.includes('Major Champion');
   const winRate = state.matchesPlayed > 0 ? Math.round((state.matchesWon / state.matchesPlayed) * 100) : 0;
 
   // Career grade
@@ -28,6 +31,15 @@ export default function GameOver() {
   else if (state.stage === 'Tier 3') { grade = 'B'; gradeColor = 'text-primary'; }
   else if (state.stage === 'Academy') { grade = 'C+'; gradeColor = 'text-cs2-blue'; }
   else if (state.stage === 'FPL') { grade = 'C'; gradeColor = 'text-cs2-blue'; }
+
+  // Save lifetime stats once
+  if (!savedRef.current) {
+    savedRef.current = true;
+    saveLifetimeStats(state, grade);
+  }
+  const lifetime = loadLifetimeStats();
+  const legacyScore = calculateLegacyScore(state);
+  const completedChallenges = (state.careerChallenges ?? []).filter(c => c.completed);
 
   // Determine career archetype
   let archetype = '';
@@ -144,6 +156,57 @@ export default function GameOver() {
             ⚔️ Rivalry with <span className="text-cs2-orange">{state.rival.name}</span> ends here —{' '}
             <span className="text-cs2-green">{state.rival.wins}W</span> /{' '}
             <span className="text-destructive">{state.rival.losses}L</span>
+          </div>
+        )}
+
+        {/* Legacy Score */}
+        <div className="bg-card border border-cs2-gold/30 rounded-lg p-5 text-center">
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-1">Legacy Score</div>
+          <div className="text-4xl font-mono font-black text-cs2-gold">{legacyScore}</div>
+          {completedChallenges.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs font-mono text-muted-foreground mb-2">Challenges Completed ({completedChallenges.length}/{(state.careerChallenges ?? []).length})</div>
+              <div className="flex flex-wrap gap-1 justify-center">
+                {completedChallenges.map(c => (
+                  <span key={c.id} className="px-2 py-0.5 rounded text-xs font-mono bg-cs2-gold/10 text-cs2-gold border border-cs2-gold/30">
+                    ✅ {c.title}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Hall of Fame */}
+        {lifetime.totalCareers > 0 && (
+          <div className="bg-card border border-border rounded-lg p-5">
+            <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Hall of Fame · All Careers</h3>
+            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div>
+                <div className="text-muted-foreground mb-0.5">Total Careers</div>
+                <div className="text-foreground font-bold">{lifetime.totalCareers}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-0.5">Best Grade</div>
+                <div className="text-cs2-gold font-bold">{lifetime.bestGrade}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-0.5">Majors Won</div>
+                <div className="text-cs2-gold font-bold">{lifetime.majorsWon}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-0.5">Total Earnings</div>
+                <div className="text-cs2-green font-bold">${lifetime.totalEarnings.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-0.5">Best Win Streak</div>
+                <div className="text-foreground">{lifetime.bestWinStreak}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-0.5">All-Time Legacy</div>
+                <div className="text-cs2-gold font-bold">{lifetime.totalLegacyScore.toLocaleString()}</div>
+              </div>
+            </div>
           </div>
         )}
 

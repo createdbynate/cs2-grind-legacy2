@@ -240,7 +240,7 @@ export interface MatchResult {
 export type EventCategory =
   | 'team_drama' | 'breakout' | 'burnout' | 'meta'
   | 'social' | 'opportunity' | 'personal' | 'rivalry'
-  | 'financial' | 'injury';
+  | 'financial' | 'injury' | 'match_moment';
 
 export interface EventEffects {
   money: number;
@@ -263,6 +263,36 @@ export interface EventEffects {
   confidence: number;
   nadeUsage: number;
   positioning: number;
+  matchMomentBoost: number; // direct win probability modifier (-0.3 to +0.3)
+}
+
+// ─── CAREER CHALLENGES ───
+export type ChallengeType =
+  | 'win_streak' | 'matches_played' | 'earn_money' | 'reach_stage'
+  | 'win_tournament' | 'major_champion' | 'level10_faceit'
+  | 'clutch_percent' | 'no_big_loss_streak' | 'professionalism';
+
+export interface CareerChallenge {
+  id: string;
+  title: string;
+  description: string;
+  type: ChallengeType;
+  target: number;
+  completed: boolean;
+  bonusDesc: string;
+  legacyBonus: number;
+}
+
+// ─── LIFETIME STATS (persisted across careers) ───
+export interface LifetimeStats {
+  totalCareers: number;
+  bestGrade: string;
+  majorsWon: number;
+  totalEarnings: number;
+  bestWinStreak: number;
+  totalMatchesPlayed: number;
+  totalTournamentsWon: number;
+  totalLegacyScore: number;
 }
 
 export interface EventChoice {
@@ -346,6 +376,16 @@ export interface GameState {
   currentEvent: GameEvent | null;
   weekLog: string[];
   eventHistory: { id: string; week: number }[];
+
+  // Match moment system
+  matchMomentBoost: number;
+  pendingMatch: boolean;
+
+  // Career challenges
+  careerChallenges: CareerChallenge[];
+
+  // Legacy score for this career
+  legacyScore: number;
 
   // Meta
   achievements: string[];
